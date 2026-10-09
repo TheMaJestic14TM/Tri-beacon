@@ -1,42 +1,31 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Source Files">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
-    </Filter>
-    <Filter Include="Header Files">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
-    </Filter>
-    <Filter Include="Resource Files">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
-    </Filter>
+    <Filter Include="Source Files"><UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier><Extensions>cpp;c;cc;cxx;c++;cppm;ixx</Extensions></Filter>
+    <Filter Include="Header Files"><UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier><Extensions>h;hh;hpp;hxx;h++;inl;ipp</Extensions></Filter>
+    <Filter Include="Header Files\Third Party"><UniqueIdentifier>{B61C2D2B-AB4C-4125-8D8B-A48270F10CA1}</UniqueIdentifier></Filter>
+    <Filter Include="Level Data"><UniqueIdentifier>{CA2EC4A8-F207-4198-A252-90AE9D8D462B}</UniqueIdentifier></Filter>
+    <Filter Include="Tileset"><UniqueIdentifier>{F9415C31-E7A2-44B7-B48B-86AF4A906C9E}</UniqueIdentifier></Filter>
   </ItemGroup>
   <ItemGroup>
-    <None Include="main.code-workspace" />
-    <None Include="Makefile" />
-    <None Include="lib\libgcc_s_dw2-1.dll" />
-    <None Include="lib\libstdc++-6.dll" />
+    <ClCompile Include="src\main.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="src\Game.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="src\Level.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="src\Pathfinder.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="src\Renderer.cpp"><Filter>Source Files</Filter></ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\main.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\projectile\projectile.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\gameOver\gameOver.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
+    <ClInclude Include="src\Game.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\GameTypes.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\Level.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\Pathfinder.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\Renderer.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\third_party\nlohmann\json.hpp"><Filter>Header Files\Third Party</Filter></ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\projectile\projectile.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\gameOver\gameOver.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
+    <None Include="levels\01_beacon_basics.tmj"><Filter>Level Data</Filter></None>
+    <None Include="tiles\terrain.tsj"><Filter>Tileset</Filter></None>
+    <None Include="tiles\terrain.png"><Filter>Tileset</Filter></None>
+    <None Include="src\third_party\nlohmann\LICENSE.MIT"><Filter>Level Data</Filter></None>
   </ItemGroup>
 </Project>

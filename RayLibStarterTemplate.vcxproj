@@ -23,6 +23,7 @@
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{1b063d85-6010-4661-a1fb-b27c915eaa7d}</ProjectGuid>
     <RootNamespace>RayLibStarterTemplate</RootNamespace>
+    <TargetName>TriBeacon</TargetName>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -71,12 +72,18 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\raylib\raylib\src;C:\raylib\raylib\src\external;$(ProjectDir);$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir);$(ProjectDir)src;$(ProjectDir)src\third_party;$(IncludePath)</IncludePath>
     <LibraryPath>$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>C:\raylib\raylib\src;C:\raylib\raylib\src\external;$(ProjectDir);$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir);$(ProjectDir)src;$(ProjectDir)src\third_party;$(IncludePath)</IncludePath>
     <LibraryPath>$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -84,6 +91,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)src;$(ProjectDir)src\third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -98,6 +107,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)src;$(ProjectDir)src\third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -110,6 +121,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)src;$(ProjectDir)src\third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -117,6 +130,18 @@
       <AdditionalLibraryDirectories>$(ProjectDir)/lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>raylib.lib;opengl32.lib;gdi32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>if not exist "$(OutDir)levels" mkdir "$(OutDir)levels"
+if not exist "$(OutDir)tiles" mkdir "$(OutDir)tiles"
+del /Q "$(OutDir)levels\*.tmj" 2&gt;nul
+copy /Y "$(ProjectDir)levels\*.tmj" "$(OutDir)levels\" &gt;nul
+copy /Y "$(ProjectDir)tiles\terrain.tsj" "$(OutDir)tiles\" &gt;nul
+copy /Y "$(ProjectDir)tiles\terrain.png" "$(OutDir)tiles\" &gt;nul
+copy /Y "$(ProjectDir)lib\raylib.dll" "$(OutDir)" &gt;nul
+copy /Y "$(ProjectDir)lib\glfw3.dll" "$(OutDir)" &gt;nul
+copy /Y "$(ProjectDir)lib\libgcc_s_dw2-1.dll" "$(OutDir)" &gt;nul
+copy /Y "$(ProjectDir)lib\libstdc++-6.dll" "$(OutDir)" &gt;nul</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -126,6 +151,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)src;$(ProjectDir)src\third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -133,15 +160,43 @@
       <AdditionalLibraryDirectories>$(ProjectDir)/lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>raylib.lib;opengl32.lib;gdi32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>if not exist "$(OutDir)levels" mkdir "$(OutDir)levels"
+if not exist "$(OutDir)tiles" mkdir "$(OutDir)tiles"
+del /Q "$(OutDir)levels\*.tmj" 2&gt;nul
+copy /Y "$(ProjectDir)levels\*.tmj" "$(OutDir)levels\" &gt;nul
+copy /Y "$(ProjectDir)tiles\terrain.tsj" "$(OutDir)tiles\" &gt;nul
+copy /Y "$(ProjectDir)tiles\terrain.png" "$(OutDir)tiles\" &gt;nul
+copy /Y "$(ProjectDir)lib\raylib.dll" "$(OutDir)" &gt;nul
+copy /Y "$(ProjectDir)lib\glfw3.dll" "$(OutDir)" &gt;nul
+copy /Y "$(ProjectDir)lib\libgcc_s_dw2-1.dll" "$(OutDir)" &gt;nul
+copy /Y "$(ProjectDir)lib\libstdc++-6.dll" "$(OutDir)" &gt;nul</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="lib\libgcc_s_dw2-1.dll" />
     <None Include="lib\libstdc++-6.dll" />
+    <None Include="lib\raylib.dll" />
+    <None Include="lib\glfw3.dll" />
     <None Include="main.code-workspace" />
     <None Include="Makefile" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\Game.cpp" />
+    <ClCompile Include="src\Level.cpp" />
+    <ClCompile Include="src\Pathfinder.cpp" />
+    <ClCompile Include="src\Renderer.cpp" />
+    <ClInclude Include="src\Game.h" />
+    <ClInclude Include="src\GameTypes.h" />
+    <ClInclude Include="src\Level.h" />
+    <ClInclude Include="src\Pathfinder.h" />
+    <ClInclude Include="src\Renderer.h" />
+    <ClInclude Include="src\third_party\nlohmann\json.hpp" />
+    <None Include="src\third_party\nlohmann\LICENSE.MIT" />
+    <None Include="levels\01_beacon_basics.tmj" />
+    <None Include="tiles\terrain.tsj" />
+    <None Include="tiles\terrain.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
