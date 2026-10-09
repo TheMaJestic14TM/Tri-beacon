@@ -1,0 +1,24 @@
+{
+  "type": "tileset",
+  "version": "1.10",
+  "tiledversion": "1.10.2",
+  "name": "TriBeacon",
+  "tilewidth": 40,
+  "tileheight": 40,
+  "tilecount": 9,
+  "columns": 9,
+  "image": "terrain.png",
+  "imagewidth": 360,
+  "imageheight": 40,
+  "tiles": [
+    { "id": 0, "type": "floor", "properties": [{ "name": "terrain", "type": "string", "value": "floor" }] },
+    { "id": 1, "type": "wall", "properties": [{ "name": "terrain", "type": "string", "value": "wall" }] },
+    { "id": 2, "type": "water", "properties": [{ "name": "terrain", "type": "string", "value": "water" }] },
+    { "id": 3, "type": "cargo", "properties": [{ "name": "terrain", "type": "string", "value": "cargo" }] },
+    { "id": 4, "type": "start", "properties": [{ "name": "role", "type": "string", "value": "start" }] },
+    { "id": 5, "type": "goal", "properties": [{ "name": "role", "type": "string", "value": "goal" }] },
+    { "id": 6, "type": "hazard", "properties": [{ "name": "terrain", "type": "string", "value": "hazard" }] },
+    { "id": 7, "type": "blue beacon", "properties": [{ "name": "role", "type": "string", "value": "blueBeacon" }] },
+    { "id": 8, "type": "red beacon", "properties": [{ "name": "role", "type": "string", "value": "redBeacon" }] }
+  ]
+}

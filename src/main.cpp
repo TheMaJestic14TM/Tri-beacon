@@ -1,35 +1,23 @@
+#include "Game.h"
+#include "Renderer.h"
 #include "raylib.h"
-#include <cmath>
-#include <iostream>
+#include <algorithm>
+
+using namespace std;
 
 
-
-int main()
-{
-	// Initialize the window
-	InitWindow(300, 300, "Tri-Beacon");
-	
-	// Windowsize, we should play around with this
-	SetWindowSize(512, 512);
-	//ToggleFullscreen();
-	SetTargetFPS(60);
-
-	while (!WindowShouldClose()) // Can be closed whith Esc
-	{
-		//Deltatime
-		float deltaTime = GetFrameTime();
-		
-		BeginDrawing();
-
-		ClearBackground(Color(WHITE));
-		DrawCircle(256,256,32,Color(BLACK));
-
-		DrawFPS(10, 10);//show FPS in the top left corner
-		
-		EndDrawing();
-	}
-
-	CloseWindow();
-
-	return 0;
+int main() {
+    // Every frame checks input, updates the world and draws it
+    // Cap the frame time so minions do not jump after a pause
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
+    InitWindow(tri::WindowWidth, tri::WindowHeight, "TRI / BEACON - A living grid puzzle");
+    SetTargetFPS(60);
+    tri::Game game;
+    while (!WindowShouldClose()) {
+        game.HandleInput();
+        game.Update(min(GetFrameTime(), 0.05f));
+        tri::DrawGame(game);
+    }
+    CloseWindow();
+    return 0;
 }
