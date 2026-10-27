@@ -10,8 +10,7 @@ vector<CellPos> Pathfinder::FindPath(
     const Level& level,
     CellPos from,
     CellPos to,
-    const Beacon& blue,
-    const Beacon& red) {
+    const vector<Beacon>& beacons) {
 
     // The queue keeps track of cells we might check next
     struct Node {
@@ -65,28 +64,31 @@ vector<CellPos> Pathfinder::FindPath(
             next.x = current.x + moveX[direction];
             next.y = current.y + moveY[direction];
 
-            if (!level.IsPathable(next.x, next.y)) {
-                continue;
-            }
-            if (visited[next.y][next.x]) {
+            if (!level.IsPathable(next.x, next.y) || visited[next.y][next.x]) {
                 continue;
             }
 
             float stepCost = 1.0f;
-
             if (level.At(next.x, next.y) == Tile::Water) {
                 stepCost += 1.5f;
             }
 
             // Blue makes nearby tiles tempting and red makes them costly
-            if (blue.active) {
-                int blueDistance = level.Distance(next, blue.cell);
-                stepCost -= max(0, 6 - blueDistance) * 0.12f;
-            }
+            for (const Beacon& beacon : beacons) {
+                int xDistance = abs(next.x - beacon.cell.x);
+                int yDistance = abs(next.y - beacon.cell.y);
+                bool inBeaconArea = xDistance <= BeaconAreaRadius && yDistance <= BeaconAreaRadius;
 
-            if (red.active) {
-                int redDistance = level.Distance(next, red.cell);
-                stepCost += max(0, 4 - redDistance) * 0.6f;
+                if (!inBeaconArea) {
+                    continue;
+                }
+
+                if (beacon.type == 1) {
+                    stepCost -= 0.12f;
+                }
+                if (beacon.type == 2) {
+                    stepCost += 0.6f;
+                }
             }
 
             float newCost = costs[current.y][current.x] + stepCost;

@@ -8,7 +8,10 @@ namespace tri {
 class Pathfinder {
 public:
     // Give back the cells in order from start to target
-    static std::vector<CellPos> FindPath(const Level& level, CellPos from, CellPos to,
-        const Beacon& blue, const Beacon& red);
+    static std::vector<CellPos> FindPath(
+        const Level& level,
+        CellPos from,
+        CellPos to,
+        const std::vector<Beacon>& beacons);
 };
 }

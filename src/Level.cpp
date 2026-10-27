@@ -27,7 +27,6 @@ Json FindProperty(const Json& owner, const string& name) {
     return nullptr;
 }
 
-// Turn a terrain name from Tiled into something the game understands
 Tile TileFromName(const string& name) {
     if (name == "wall") return Tile::Wall;
     if (name == "water") return Tile::Water;
@@ -36,7 +35,15 @@ Tile TileFromName(const string& name) {
     return Tile::Floor;
 }
 
-// Start and goal need to be on the map and somewhere safe
+int ReadIntProperty(const Json& map, const string& name, int defaultValue) {
+    Json value = FindProperty(map, name);
+    if (!value.is_number_integer()) {
+        return defaultValue;
+    }
+    return value.get<int>();
+}
+
+// Start has to be on the map and somewhere safe
 bool IsSafeCell(const LevelDefinition& level, CellPos cell) {
     bool insideMap = cell.x >= 0 && cell.y >= 0;
     insideMap = insideMap && cell.x < GridWidth && cell.y < GridHeight;
@@ -46,23 +53,6 @@ bool IsSafeCell(const LevelDefinition& level, CellPos cell) {
 
     Tile tile = level.terrain[cell.y][cell.x];
     return tile != Tile::Wall && tile != Tile::Hazard;
-}
-
-// Grab a number from the map or stick with the default
-float ReadFloatProperty(const Json& map, const string& name, float defaultValue) {
-    Json value = FindProperty(map, name);
-    if (!value.is_number()) {
-        return defaultValue;
-    }
-    return value.get<float>();
-}
-
-int ReadIntProperty(const Json& map, const string& name, int defaultValue) {
-    Json value = FindProperty(map, name);
-    if (!value.is_number_integer()) {
-        return defaultValue;
-    }
-    return value.get<int>();
 }
 
 // Open a Tiled map and make sure it has what the game needs
@@ -95,10 +85,10 @@ bool LoadDefinition(const filesystem::path& file, LevelDefinition& level) {
             level.name = file.stem().string();
         }
 
-        level.pawnSpawnSeconds = ReadFloatProperty(map, "pawnSpawnSeconds", level.pawnSpawnSeconds);
-        level.pawnLimit = ReadIntProperty(map, "pawnLimit", level.pawnLimit);
         level.cargoGoal = ReadIntProperty(map, "cargoGoal", level.cargoGoal);
-        level.rescueGoal = ReadIntProperty(map, "rescueGoal", level.rescueGoal);
+        level.greenBeaconLimit = ReadIntProperty(map, "greenBeaconLimit", level.greenBeaconLimit);
+        level.blueBeaconLimit = ReadIntProperty(map, "blueBeaconLimit", level.blueBeaconLimit);
+        level.redBeaconLimit = ReadIntProperty(map, "redBeaconLimit", level.redBeaconLimit);
 
         // Tiled writes a number for each tile
         // Match those numbers with the ground types in the tileset
@@ -119,7 +109,6 @@ bool LoadDefinition(const filesystem::path& file, LevelDefinition& level) {
 
             Json tileset;
             tilesetStream >> tileset;
-
             if (!tileset.contains("tiles")) {
                 continue;
             }
@@ -135,11 +124,8 @@ bool LoadDefinition(const filesystem::path& file, LevelDefinition& level) {
             }
         }
 
-        // First read the ground, then look for start and goal
         bool foundTerrain = false;
         bool foundStart = false;
-        bool foundGoal = false;
-
         if (!map.contains("layers") || !map["layers"].is_array()) {
             return false;
         }
@@ -178,52 +164,42 @@ bool LoadDefinition(const filesystem::path& file, LevelDefinition& level) {
 
             Json objects = layer.value("objects", Json::array());
             for (const Json& object : objects) {
-                string role = object.value("name", string{});
+                if (object.value("name", string{}) != "start") {
+                    continue;
+                }
+
                 int objectX = static_cast<int>(object.value("x", 0.0) / CellSize);
                 int objectY = static_cast<int>(object.value("y", 0.0) / CellSize);
 
                 // Tiled measures tile objects from the bottom edge
-                bool isTileObject = object.contains("gid");
-                if (isTileObject) {
+                if (object.contains("gid")) {
                     objectY--;
                 }
 
-                CellPos cell = {objectX, objectY};
-                if (role == "start") {
-                    level.start = cell;
-                    foundStart = true;
-                }
-                if (role == "goal") {
-                    level.goal = cell;
-                    foundGoal = true;
-                }
+                level.start = {objectX, objectY};
+                foundStart = true;
             }
         }
 
-        if (!foundTerrain) {
+        if (!foundTerrain || !foundStart || !IsSafeCell(level, level.start)) {
             return false;
         }
 
-        // Make sure this map has a start, a goal and enough cargo
-        int crystalCount = 0;
+        int stationCount = 0;
         for (const auto& row : level.terrain) {
             for (Tile tile : row) {
                 if (tile == Tile::Crystal) {
-                    crystalCount++;
+                    stationCount++;
                 }
             }
         }
 
-        bool hasValidObjects = foundStart && foundGoal;
-        hasValidObjects = hasValidObjects && IsSafeCell(level, level.start);
-        hasValidObjects = hasValidObjects && IsSafeCell(level, level.goal);
+        bool validBeaconLimits = level.greenBeaconLimit >= 1;
+        validBeaconLimits = validBeaconLimits && level.blueBeaconLimit >= 0;
+        validBeaconLimits = validBeaconLimits && level.redBeaconLimit >= 0;
 
-        bool hasEnoughCargo = crystalCount >= level.cargoGoal && level.cargoGoal > 0;
-        bool hasValidPawnRules = level.pawnLimit > 0 && level.rescueGoal > 0;
-        hasValidPawnRules = hasValidPawnRules && level.rescueGoal <= level.pawnLimit;
-        hasValidPawnRules = hasValidPawnRules && level.pawnSpawnSeconds > 0.0f;
-
-        return hasValidObjects && hasEnoughCargo && hasValidPawnRules;
+        // Skip maps without a start, cargo stations or usable rules
+        return stationCount > 0 && level.cargoGoal > 0 && validBeaconLimits;
     } catch (const exception&) {
         // A half-finished map should not stop the whole game loading
         return false;
@@ -259,7 +235,6 @@ vector<LevelDefinition> LoadLevelCatalog(const filesystem::path& directory) {
     return levels;
 }
 
-// Keep the original around so Reset can put the map back
 Level::Level(LevelDefinition definition)
     : definition_(move(definition)) {
     Reset();
@@ -269,22 +244,18 @@ void Level::Reset() {
     tiles_ = definition_.terrain;
 }
 
-// See if this cell is actually on the map
 bool Level::IsInside(int x, int y) const {
     return x >= 0 && y >= 0 && x < GridWidth && y < GridHeight;
 }
 
-// Minions can try hazards, but walls stop them
 bool Level::IsPathable(int x, int y) const {
     return IsInside(x, y) && tiles_[y][x] != Tile::Wall;
 }
 
-// Count how many grid steps apart these cells are
 int Level::Distance(CellPos a, CellPos b) const {
     return abs(a.x - b.x) + abs(a.y - b.y);
 }
 
-// Treat anything outside the map like a wall
 Tile Level::At(int x, int y) const {
     if (!IsInside(x, y)) {
         return Tile::Wall;
@@ -292,28 +263,24 @@ Tile Level::At(int x, int y) const {
     return tiles_[y][x];
 }
 
-// Pick up a crystal and clear its tile
-bool Level::CollectCrystal(CellPos cell) {
-    if (At(cell.x, cell.y) != Tile::Crystal) {
-        return false;
-    }
-
-    tiles_[cell.y][cell.x] = Tile::Floor;
-    return true;
+bool Level::IsInsideCargoArea(CellPos cell, CellPos station) const {
+    int xDistance = abs(cell.x - station.x);
+    int yDistance = abs(cell.y - station.y);
+    return xDistance <= CargoAreaRadius && yDistance <= CargoAreaRadius;
 }
 
-// Find all the crystals still waiting on the map
-vector<CellPos> Level::AvailableCrystals() const {
-    vector<CellPos> crystals;
+// Find every cargo source on the map
+vector<CellPos> Level::CargoStations() const {
+    vector<CellPos> stations;
 
     for (int y = 0; y < GridHeight; y++) {
         for (int x = 0; x < GridWidth; x++) {
             if (tiles_[y][x] == Tile::Crystal) {
-                crystals.push_back({x, y});
+                stations.push_back({x, y});
             }
         }
     }
 
-    return crystals;
+    return stations;
 }
 }
