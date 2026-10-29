@@ -1,17 +1,19 @@
 #include "Pathfinder.h"
 #include <algorithm>
+#include <cstdlib>
 #include <queue>
 
 namespace tri {
 using namespace std;
 
-// Find the cheapest way from one cell to another
+// ============================================================
+// A star path search
+// Find the cheapest walkable route between two cells
 vector<CellPos> Pathfinder::FindPath(
     const Level& level,
     CellPos from,
     CellPos to,
-    const Beacon& blue,
-    const Beacon& red) {
+    const vector<Beacon>& beacons) {
 
     // The queue keeps track of cells we might check next
     struct Node {
@@ -39,7 +41,7 @@ vector<CellPos> Pathfinder::FindPath(
     priority_queue<Node> open;
     costs[from.y][from.x] = 0.0f;
 
-    // This quick distance estimate helps A star aim toward the goal
+// This distance estimate helps A star move toward the goal
     float firstEstimate = level.Distance(from, to) * 0.25f;
     open.push({firstEstimate, from});
 
@@ -65,29 +67,41 @@ vector<CellPos> Pathfinder::FindPath(
             next.x = current.x + moveX[direction];
             next.y = current.y + moveY[direction];
 
-            if (!level.IsPathable(next.x, next.y)) {
-                continue;
-            }
-            if (visited[next.y][next.x]) {
+            if (!level.IsPathable(next.x, next.y) || visited[next.y][next.x]) {
                 continue;
             }
 
             float stepCost = 1.0f;
-
             if (level.At(next.x, next.y) == Tile::Water) {
                 stepCost += 1.5f;
             }
 
-            // Blue makes nearby tiles tempting and red makes them costly
-            if (blue.active) {
-                int blueDistance = level.Distance(next, blue.cell);
-                stepCost -= max(0, 6 - blueDistance) * 0.12f;
+            // ============================================================
+            // Beacon influence on this route
+            for (const Beacon& beacon : beacons) {
+                int xDistance = abs(next.x - beacon.cell.x);
+                int yDistance = abs(next.y - beacon.cell.y);
+                bool inBeaconArea = xDistance <= BeaconAreaRadius && yDistance <= BeaconAreaRadius;
+
+                if (!inBeaconArea) {
+                    continue;
+                }
+
+                // ===== BLUE BEACON EFFECT =====
+                // Blue beacons make nearby tiles cheaper to cross
+                if (beacon.type == 1) {
+                    stepCost -= 0.5f;
+                }
+
+                // ===== RED BEACON EFFECT =====
+                // Red beacons make nearby tiles more costly to cross
+                if (beacon.type == 2) {
+                    stepCost += 2.5f;
+                }
             }
 
-            if (red.active) {
-                int redDistance = level.Distance(next, red.cell);
-                stepCost += max(0, 4 - redDistance) * 0.6f;
-            }
+            // Keep the path cost positive so A star stays predictable
+            stepCost = max(0.25f, stepCost);
 
             float newCost = costs[current.y][current.x] + stepCost;
             if (newCost >= costs[next.y][next.x]) {
@@ -115,7 +129,7 @@ vector<CellPos> Pathfinder::FindPath(
         current = previous[current.y][current.x];
         route.push_back(current);
 
-        // Bail out if something went weird and the route loops too long
+        // Stop if something went wrong and the route loops too long
         if (route.size() > GridWidth * GridHeight) {
             return {};
         }
