@@ -19,11 +19,6 @@
       "value": "Beacon Basics"
     },
     {
-      "name": "cargoGoal",
-      "type": "int",
-      "value": 3
-    },
-    {
       "name": "greenBeaconLimit",
       "type": "int",
       "value": 3

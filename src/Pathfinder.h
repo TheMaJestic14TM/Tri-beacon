@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace tri {
-// Finds a cheap route around walls, with beacons nudging the way
+// Finds a low-cost route while beacons affect the path
 class Pathfinder {
 public:
-    // Give back the cells in order from start to target
+    // Return the route cells from start to target
     static std::vector<CellPos> FindPath(
         const Level& level,
         CellPos from,

@@ -3,7 +3,7 @@
 #include "GameTypes.h"
 
 namespace tri {
-// Holds the map and its permanent cargo stations
+// Stores the map and tracks each cargo station
 class Level {
 public:
     // Every spot on the grid has one kind of ground
@@ -14,22 +14,28 @@ public:
     // Put the map back the way it was for another try
     void Reset();
 
-    // Handy checks used by minion movement and pathfinding
+    // Small map checks used for movement and routes
     bool IsInside(int x, int y) const;
     bool IsPathable(int x, int y) const;
     int Distance(CellPos a, CellPos b) const;
     Tile At(int x, int y) const;
-    bool IsInsideCargoArea(CellPos cell, CellPos station) const;
+    bool IsCargoAvailable(int stationIndex) const;
+    bool ClaimCargoStation(int stationIndex);
+    void ReleaseCargoStation(int stationIndex);
+    void DeliverCargoStation(int stationIndex);
 
     // Let other parts of the game look at the map
     const Grid& Tiles() const { return tiles_; }
     const LevelDefinition& Definition() const { return definition_; }
-    std::vector<CellPos> CargoStations() const;
+    const std::vector<CellPos>& CargoStations() const { return cargoStations_; }
     CellPos Start() const { return definition_.start; }
 
 private:
     // Save a clean copy so a restart can put everything back
     LevelDefinition definition_;
     Grid tiles_{};
+    std::vector<CellPos> cargoStations_;
+    std::vector<bool> cargoClaimed_;
+    std::vector<bool> cargoDelivered_;
 };
 }

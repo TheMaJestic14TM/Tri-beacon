@@ -85,7 +85,6 @@ bool LoadDefinition(const filesystem::path& file, LevelDefinition& level) {
             level.name = file.stem().string();
         }
 
-        level.cargoGoal = ReadIntProperty(map, "cargoGoal", level.cargoGoal);
         level.greenBeaconLimit = ReadIntProperty(map, "greenBeaconLimit", level.greenBeaconLimit);
         level.blueBeaconLimit = ReadIntProperty(map, "blueBeaconLimit", level.blueBeaconLimit);
         level.redBeaconLimit = ReadIntProperty(map, "redBeaconLimit", level.redBeaconLimit);
@@ -199,7 +198,7 @@ bool LoadDefinition(const filesystem::path& file, LevelDefinition& level) {
         validBeaconLimits = validBeaconLimits && level.redBeaconLimit >= 0;
 
         // Skip maps without a start, cargo stations or usable rules
-        return stationCount > 0 && level.cargoGoal > 0 && validBeaconLimits;
+        return stationCount > 0 && validBeaconLimits;
     } catch (const exception&) {
         // A half-finished map should not stop the whole game loading
         return false;
@@ -242,6 +241,18 @@ Level::Level(LevelDefinition definition)
 
 void Level::Reset() {
     tiles_ = definition_.terrain;
+    cargoStations_.clear();
+
+    for (int y = 0; y < GridHeight; y++) {
+        for (int x = 0; x < GridWidth; x++) {
+            if (tiles_[y][x] == Tile::Crystal) {
+                cargoStations_.push_back({x, y});
+            }
+        }
+    }
+
+    cargoClaimed_.assign(cargoStations_.size(), false);
+    cargoDelivered_.assign(cargoStations_.size(), false);
 }
 
 bool Level::IsInside(int x, int y) const {
@@ -263,24 +274,41 @@ Tile Level::At(int x, int y) const {
     return tiles_[y][x];
 }
 
-bool Level::IsInsideCargoArea(CellPos cell, CellPos station) const {
-    int xDistance = abs(cell.x - station.x);
-    int yDistance = abs(cell.y - station.y);
-    return xDistance <= CargoAreaRadius && yDistance <= CargoAreaRadius;
-}
-
-// Find every cargo source on the map
-vector<CellPos> Level::CargoStations() const {
-    vector<CellPos> stations;
-
-    for (int y = 0; y < GridHeight; y++) {
-        for (int x = 0; x < GridWidth; x++) {
-            if (tiles_[y][x] == Tile::Crystal) {
-                stations.push_back({x, y});
-            }
-        }
+bool Level::IsCargoAvailable(int stationIndex) const {
+    if (stationIndex < 0 || stationIndex >= static_cast<int>(cargoStations_.size())) {
+        return false;
     }
 
-    return stations;
+    return !cargoClaimed_[stationIndex] && !cargoDelivered_[stationIndex];
+}
+
+bool Level::ClaimCargoStation(int stationIndex) {
+    if (!IsCargoAvailable(stationIndex)) {
+        return false;
+    }
+
+    cargoClaimed_[stationIndex] = true;
+    return true;
+}
+
+void Level::ReleaseCargoStation(int stationIndex) {
+    if (stationIndex >= 0 && stationIndex < static_cast<int>(cargoStations_.size())) {
+        cargoClaimed_[stationIndex] = false;
+    }
+}
+
+void Level::DeliverCargoStation(int stationIndex) {
+    if (stationIndex < 0 || stationIndex >= static_cast<int>(cargoStations_.size())) {
+        return;
+    }
+
+    if (!cargoClaimed_[stationIndex]) {
+        return;
+    }
+
+    CellPos station = cargoStations_[stationIndex];
+    cargoClaimed_[stationIndex] = false;
+    cargoDelivered_[stationIndex] = true;
+    tiles_[station.y][station.x] = Tile::Floor;
 }
 }

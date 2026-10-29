@@ -72,17 +72,11 @@ void DrawTile(Tile tile, int gridX, int gridY) {
 void DrawHeader(const Game& game) {
     DrawRectangle(0, 0, WindowWidth, BoardTop, Panel);
     DrawText("TRI / BEACON", 32, 19, 25, Text);
-    DrawText("Visit all stations, bring cargo back", 34, 51, 14, Muted);
-
-    const Level* level = game.CurrentLevel();
-    int cargoGoal = CargoGoal;
-    if (level) {
-        cargoGoal = level->Definition().cargoGoal;
-    }
+    DrawText("Guide the minions and bring the cargo home", 34, 51, 14, Muted);
 
     const GameStats& stats = game.Stats();
     DrawText("CARGO", 370, 17, 11, Muted);
-    DrawText(TextFormat("%d / %d", stats.cargoDelivered, cargoGoal), 370, 36, 19, Green);
+    DrawText(TextFormat("%d / %d", stats.cargoDelivered, game.StationCount()), 370, 36, 19, Green);
 
     DrawText("HOME", 500, 17, 11, Muted);
     DrawText(TextFormat("%d", stats.returned), 500, 36, 19, Green);
@@ -125,7 +119,6 @@ void DrawBoard(const Game& game) {
     // Make the spawn spot easy to find
     CellPos start = level->Start();
     DrawCircleV(CellCenter(start), 12, Color{208, 221, 235, 255});
-    DrawText("START", BoardLeft + start.x * CellSize + 3, BoardTop + start.y * CellSize + 29, 9, Background);
 
     // Beacons show up once the player drops them on the map
     for (const Beacon& beacon : game.Beacons()) {
@@ -177,44 +170,34 @@ void DrawControlPanel(const Game& game) {
 
     int line = y + 17;
     DrawText("THE JOB", x + 14, line, 17, Text);
-    line += 29;
-    DrawText(TextFormat("Deliver %d cargo", game.CurrentLevel() ? game.CurrentLevel()->Definition().cargoGoal : CargoGoal), x + 14, line, 13, Muted);
-    line += 21;
-    DrawText(TextFormat("Visit all %d stations", game.StationCount()), x + 14, line, 13, Muted);
-    line += 21;
-    DrawText("Then get back to START", x + 14, line, 13, Muted);
-    line += 27;
+    line += 28;
+    DrawText(TextFormat("Deliver all %d cargo loads", game.StationCount()), x + 14, line, 13, Muted);
+    line += 20;
+    DrawText("Minions can collect several loads", x + 14, line, 13, Muted);
+    line += 20;
+    DrawText("Return when no green remains", x + 14, line, 13, Muted);
+    line += 24;
 
     DrawText("BEACONS", x + 14, line, 17, Text);
     line += 29;
-    DrawText(TextFormat("GREEN  %d / %d  Global waypoint", game.BeaconCount(0), game.BeaconLimit(0)), x + 14, line, 11, Green);
-    line += 21;
-    DrawText(TextFormat("BLUE  %d / %d  Lowers cost in 5x5", game.BeaconCount(1), game.BeaconLimit(1)), x + 14, line, 11, Blue);
-    line += 21;
-    DrawText(TextFormat("RED  %d / %d  Raises cost in 5x5", game.BeaconCount(2), game.BeaconLimit(2)), x + 14, line, 11, Red);
-    line += 27;
+    DrawText(TextFormat("GREEN     %d / %d", game.BeaconCount(0), game.BeaconLimit(0)), x + 14, line, 12, Green);
+    line += 17;
+    DrawText("Guides the minions to a waypoint", x + 14, line, 11, Muted);
+    line += 23;
+    DrawText(TextFormat("BLUE       %d / %d", game.BeaconCount(1), game.BeaconLimit(1)), x + 14, line, 12, Blue);
+    line += 17;
+    DrawText("Makes nearby paths cheaper", x + 14, line, 11, Muted);
+    line += 23;
+    DrawText(TextFormat("RED         %d / %d", game.BeaconCount(2), game.BeaconLimit(2)), x + 14, line, 12, Red);
+    line += 17;
+    DrawText("Makes nearby paths more costly", x + 14, line, 11, Muted);
+    line += 24;
 
     DrawText("HOW TO PLAY", x + 14, line, 17, Text);
     line += 29;
-    DrawText("1 green  2 blue  3 red", x + 14, line, 12, Muted);
-    line += 19;
-    DrawText("Left click adds a beacon", x + 14, line, 12, Muted);
-    line += 19;
-    DrawText("Right click removes one", x + 14, line, 12, Muted);
-    line += 19;
-    DrawText("Each minion visits all stations", x + 14, line, 12, Muted);
-    line += 19;
-    DrawText("then brings cargo home", x + 14, line, 12, Muted);
-    line += 19;
-    DrawText("Green guides each trip", x + 14, line, 12, Muted);
-    line += 19;
-    DrawText("Blue and red nudge the route", x + 14, line, 12, Muted);
-    line += 19;
-    DrawText("You can edit while they move", x + 14, line, 12, Muted);
-    line += 19;
-    DrawText("Click again to send another", x + 14, line, 12, Muted);
-    line += 19;
-    DrawText("Cargo stations never run out", x + 14, line, 12, Muted);
+    DrawText("1 green   2 blue   3 red", x + 14, line, 12, Muted);
+    line += 20;
+    DrawText("Left click places   Right click removes", x + 14, line, 11, Muted);
 
     DrawButton(StartButtonY, "START RUN  (ENTER)", game.CanStart(), Green);
     DrawButton(ReleaseButtonY, "RELEASE ONE  (N)", game.CanRelease(), Blue);
@@ -225,20 +208,21 @@ void DrawControlPanel(const Game& game) {
     }
 }
 
-// Add the little legend and controls along the bottom
+// Show the controls in separate groups so they are easy to scan
 void DrawFooter() {
-    int y = BoardTop + GridHeight * CellSize + 13;
+    int y = BoardTop + GridHeight * CellSize + 7;
+    DrawRectangle(0, y - 4, WindowWidth, FooterHeight, Panel);
 
-    DrawCircle(BoardLeft + 6, y + 6, 5, Color{230, 240, 250, 255});
-    DrawText("MINIONS", BoardLeft + 18, y, 11, Muted);
+    const int groupX[5] = {32, 286, 540, 794, 1048};
+    const char* keys[5] = {"ENTER", "N", "SPACE", "R", "F11"};
+    const char* actions[5] = {"Run", "Release one", "Pause", "Reset level", "Fullscreen"};
 
-    DrawCircle(BoardLeft + 110, y + 6, 5, Color{255, 214, 106, 255});
-    DrawText("CARGO", BoardLeft + 122, y, 11, Muted);
-
-    DrawCircle(BoardLeft + 214, y + 6, 5, Color{255, 110, 77, 255});
-    DrawText("HAZARD", BoardLeft + 226, y, 11, Muted);
-
-    DrawText("ENTER START   N RELEASE   RIGHT CLICK REMOVE   SPACE PAUSE   F11 FULLSCREEN   R RESET", BoardLeft + 365, y, 11, Muted);
+    for (int i = 0; i < 5; i++) {
+        DrawRectangle(groupX[i], y + 9, 190, 36, Color{31, 42, 58, 255});
+        DrawRectangleLines(groupX[i], y + 9, 190, 36, Color{52, 68, 88, 255});
+        DrawText(keys[i], groupX[i] + 10, y + 20, 11, Green);
+        DrawText(actions[i], groupX[i] + 78, y + 20, 11, Text);
+    }
 }
 
 // Leave a message up while it matters or after the run ends
@@ -252,8 +236,11 @@ void DrawNotice(const Game& game) {
         return;
     }
 
-    DrawRectangle(BoardLeft, BoardTop - 34, 570, 25, Color{25, 37, 52, 245});
-    DrawText(notice.message.c_str(), BoardLeft + 10, BoardTop - 30, 14, Text);
+    int noticeWidth = MeasureText(notice.message.c_str(), 12) + 20;
+    int noticeY = BoardTop - 21;
+
+    DrawRectangle(BoardLeft, noticeY, noticeWidth, 19, Color{25, 37, 52, 245});
+    DrawText(notice.message.c_str(), BoardLeft + 10, noticeY + 3, 12, Text);
 }
 
 // Darken the board when the game is paused or finished
@@ -288,6 +275,11 @@ void DrawGame(const Game& game) {
     BeginDrawing();
     ClearBackground(Background);
 
+    Camera2D camera{};
+    camera.offset = GameViewOffset();
+    camera.zoom = GameViewScale();
+    BeginMode2D(camera);
+
     DrawHeader(game);
     DrawBoard(game);
     DrawFooter();
@@ -295,6 +287,7 @@ void DrawGame(const Game& game) {
     DrawEndOverlay(game);
     DrawControlPanel(game);
 
+    EndMode2D();
     EndDrawing();
 }
 }

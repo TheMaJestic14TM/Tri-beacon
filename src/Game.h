@@ -10,7 +10,7 @@ class Game {
 public:
     Game();
 
-    // Give the current map a clean restart
+    // Reset the level and clear the current run
     void Reset();
     void Update(float deltaTime);
     void HandleInput();
@@ -34,14 +34,13 @@ public:
     bool HasStarted() const { return started_; }
     bool IsRunning() const { return running_; }
     bool HasWon() const { return won_; }
-    bool HasGivenUp() const { return givenUp_; }
 
 private:
-    // These helpers keep the bigger bits from getting messy
+    // Small helpers used by the game
     void SpawnPawn();
     void SetNotice(const std::string& message);
-    int FindNextStation(const Pawn& pawn) const;
-    int FindNearestGreenBeacon(CellPos from) const;
+    int FindNearbyCargoStation(CellPos from) const;
+    int FindNextGreenBeacon(CellPos from, const std::vector<CellPos>& visited) const;
     void UpdatePawn(Pawn& pawn, float deltaTime);
     void PlaceBeacon(CellPos cell);
     void RemoveBeacon(CellPos cell);
@@ -50,6 +49,7 @@ private:
     // The current map and everything that can change during a run
     std::unique_ptr<Level> level_;
     std::vector<Pawn> pawns_;
+    // This list holds every beacon the player has placed
     std::vector<Beacon> beacons_;
     GameStats stats_{};
     Notice notice_{};
@@ -59,6 +59,5 @@ private:
     bool started_ = false;
     bool paused_ = false;
     bool won_ = false;
-    bool givenUp_ = false;
 };
 }

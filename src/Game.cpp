@@ -14,6 +14,9 @@ const Color GreenColor = {74, 218, 143, 255};
 const Color BlueColor = {75, 173, 255, 255};
 const Color RedColor = {255, 100, 103, 255};
 
+// ============================================================
+// Beacon setup
+// Give each beacon its color and type when it is placed
 Beacon MakeBeacon(int type, CellPos cell) {
     Beacon beacon;
     beacon.cell = cell;
@@ -21,13 +24,10 @@ Beacon MakeBeacon(int type, CellPos cell) {
 
     if (type == 0) {
         beacon.color = GreenColor;
-        beacon.label = "GREEN";
     } else if (type == 1) {
         beacon.color = BlueColor;
-        beacon.label = "BLUE";
     } else {
         beacon.color = RedColor;
-        beacon.label = "RED";
     }
 
     return beacon;
@@ -39,7 +39,7 @@ bool IsInsideRectangle(Vector2 point, int x, int y, int width, int height) {
 }
 }
 
-// Grab the first map in the levels folder that actually loads
+// Load the first valid map from the levels folder
 Game::Game() {
     vector<LevelDefinition> levels = LoadLevelCatalog(TRI_BEACON_LEVEL_DIR);
 
@@ -70,15 +70,17 @@ void Game::Reset() {
     paused_ = false;
     running_ = true;
     won_ = false;
-    givenUp_ = false;
 }
 
-// Pop a quick message above the board
+// Show a short message above the board
 void Game::SetNotice(const string& message) {
     notice_.message = message;
     notice_.timeLeft = 3.0f;
 }
 
+// ============================================================
+// Beacon count and level limits
+// Read how many of each type are placed and how many are allowed
 int Game::BeaconCount(int type) const {
     int count = 0;
     for (const Beacon& beacon : beacons_) {
@@ -123,7 +125,6 @@ void Game::SpawnPawn() {
     Pawn pawn;
     pawn.position = position;
     pawn.cell = start;
-    pawn.visitedStations.resize(level_->CargoStations().size(), false);
     pawns_.push_back(pawn);
     stats_.deployed++;
 }
@@ -156,22 +157,28 @@ void Game::GiveUp() {
     }
 
     running_ = false;
-    givenUp_ = true;
     SetNotice("Run ended · Press R to try again");
 }
 
-// Pick the closest cargo station this minion has not visited yet
-int Game::FindNextStation(const Pawn& pawn) const {
-    vector<CellPos> stations = level_->CargoStations();
+// ============================================================
+// Cargo only becomes a target inside its local 3x3 area
+int Game::FindNearbyCargoStation(CellPos from) const {
     int bestIndex = -1;
     int bestDistance = 1000000;
+    const vector<CellPos>& stations = level_->CargoStations();
 
     for (int i = 0; i < static_cast<int>(stations.size()); i++) {
-        if (pawn.visitedStations[i]) {
+        if (!level_->IsCargoAvailable(i)) {
             continue;
         }
 
-        int distance = level_->Distance(pawn.cell, stations[i]);
+        int distanceX = abs(from.x - stations[i].x);
+        int distanceY = abs(from.y - stations[i].y);
+        if (distanceX > CargoAreaRadius || distanceY > CargoAreaRadius) {
+            continue;
+        }
+
+        int distance = level_->Distance(from, stations[i]);
         if (distance < bestDistance) {
             bestDistance = distance;
             bestIndex = i;
@@ -181,13 +188,26 @@ int Game::FindNextStation(const Pawn& pawn) const {
     return bestIndex;
 }
 
-// Find the closest green beacon to this minion
-int Game::FindNearestGreenBeacon(CellPos from) const {
+// ============================================================
+// Choose the next green waypoint the minion has not visited
+int Game::FindNextGreenBeacon(CellPos from, const vector<CellPos>& visited) const {
     int bestIndex = -1;
     int bestDistance = 1000000;
 
     for (int i = 0; i < static_cast<int>(beacons_.size()); i++) {
         if (beacons_[i].type != 0) {
+            continue;
+        }
+
+        bool alreadyVisited = false;
+        for (CellPos cell : visited) {
+            if (cell == beacons_[i].cell) {
+                alreadyVisited = true;
+                break;
+            }
+        }
+
+        if (alreadyVisited) {
             continue;
         }
 
@@ -201,48 +221,62 @@ int Game::FindNearestGreenBeacon(CellPos from) const {
     return bestIndex;
 }
 
-// Move one minion along and see what it runs into
+// Move one minion and handle anything it reaches
 void Game::UpdatePawn(Pawn& pawn, float deltaTime) {
     pawn.cell = {static_cast<int>(pawn.position.x), static_cast<int>(pawn.position.y)};
 
     // Step onto a hazard and this minion is out
     if (level_->At(pawn.cell.x, pawn.cell.y) == Tile::Hazard) {
+        if (pawn.targetStationIndex >= 0) {
+            level_->ReleaseCargoStation(pawn.targetStationIndex);
+        }
+        for (int stationIndex : pawn.cargoStationIndexes) {
+            level_->ReleaseCargoStation(stationIndex);
+        }
+
         pawn.alive = false;
         pawn.cargoCount = 0;
+        pawn.targetStationIndex = -1;
+        pawn.cargoStationIndexes.clear();
         stats_.lost++;
         return;
     }
 
-    // A station keeps its cargo for the next minion too
-    vector<CellPos> stations = level_->CargoStations();
-    for (int i = 0; i < static_cast<int>(stations.size()); i++) {
-        if (pawn.visitedStations[i]) {
-            continue;
-        }
-
-        if (level_->IsInsideCargoArea(pawn.cell, stations[i])) {
-            pawn.visitedStations[i] = true;
-            pawn.cargoCount++;
+    // ============================================================
+    // Cargo only becomes a goal when the minion is nearby
+    if (pawn.targetStationIndex < 0) {
+        int stationIndex = FindNearbyCargoStation(pawn.cell);
+        if (stationIndex >= 0 && level_->ClaimCargoStation(stationIndex)) {
+            pawn.targetStationIndex = stationIndex;
             pawn.hasGreenWaypoint = false;
-            pawn.passedGreenWaypoint = false;
         }
     }
 
-    int nextStation = FindNextStation(pawn);
-    bool hasStation = nextStation >= 0;
+    // ============================================================
+    // A minion picks up each cargo it finds along its beacon route
     CellPos target = level_->Start();
 
-    if (hasStation) {
-        target = stations[nextStation];
+    if (pawn.targetStationIndex >= 0) {
+        const vector<CellPos>& stations = level_->CargoStations();
+        CellPos station = stations[pawn.targetStationIndex];
+        target = station;
+
+        if (pawn.cell == station) {
+            pawn.cargoStationIndexes.push_back(pawn.targetStationIndex);
+            pawn.targetStationIndex = -1;
+            pawn.cargoCount++;
+        }
     }
 
-    // Visit the nearest green beacon before heading to the next task
-    if (!pawn.passedGreenWaypoint) {
+    if (pawn.targetStationIndex < 0) {
+        // ============================================================
+        // Green beacons lead minions through the map
         if (pawn.hasGreenWaypoint) {
             bool waypointStillThere = false;
             for (const Beacon& beacon : beacons_) {
                 if (beacon.type == 0 && beacon.cell == pawn.greenWaypoint) {
                     waypointStillThere = true;
+                    break;
                 }
             }
 
@@ -251,31 +285,40 @@ void Game::UpdatePawn(Pawn& pawn, float deltaTime) {
             }
         }
 
+        if (pawn.hasGreenWaypoint && pawn.cell == pawn.greenWaypoint) {
+            pawn.visitedGreenBeacons.push_back(pawn.greenWaypoint);
+            pawn.hasGreenWaypoint = false;
+        }
+
         if (!pawn.hasGreenWaypoint) {
-            int greenIndex = FindNearestGreenBeacon(pawn.cell);
+            int greenIndex = FindNextGreenBeacon(pawn.cell, pawn.visitedGreenBeacons);
+
             if (greenIndex >= 0) {
                 pawn.greenWaypoint = beacons_[greenIndex].cell;
                 pawn.hasGreenWaypoint = true;
-            } else {
-                pawn.passedGreenWaypoint = true;
-            }
-        }
-
-        if (pawn.hasGreenWaypoint) {
-            if (pawn.cell == pawn.greenWaypoint) {
-                pawn.hasGreenWaypoint = false;
-                pawn.passedGreenWaypoint = true;
-            } else {
                 target = pawn.greenWaypoint;
+            } else {
+                target = level_->Start();
             }
+        } else {
+            target = pawn.greenWaypoint;
         }
     }
 
-    // Once every station is visited, head back to the start
-    if (!hasStation && pawn.cell == level_->Start() && pawn.cargoCount > 0) {
+    if (pawn.targetStationIndex < 0 && !pawn.hasGreenWaypoint &&
+        target == level_->Start() && pawn.cell == level_->Start()) {
+        if (pawn.cargoCount > 0) {
+            for (int stationIndex : pawn.cargoStationIndexes) {
+                level_->DeliverCargoStation(stationIndex);
+                stats_.cargoDelivered++;
+            }
+
+            stats_.returned++;
+        }
+
+        pawn.cargoStationIndexes.clear();
+        pawn.cargoCount = 0;
         pawn.alive = false;
-        stats_.returned++;
-        stats_.cargoDelivered += pawn.cargoCount;
         return;
     }
 
@@ -308,7 +351,9 @@ void Game::UpdatePawn(Pawn& pawn, float deltaTime) {
     pawn.position.y += moveY / distance * moveDistance;
 }
 
-// Keep the level moving once the player starts the run
+// ============================================================
+// Run progress and win check
+// Update the level and check if all cargo is home
 void Game::Update(float deltaTime) {
     if (!running_ || paused_ || !started_ || !level_) {
         return;
@@ -327,8 +372,7 @@ void Game::Update(float deltaTime) {
         }
     }
 
-    const LevelDefinition& rules = level_->Definition();
-    if (stats_.cargoDelivered >= rules.cargoGoal) {
+    if (stats_.cargoDelivered >= StationCount()) {
         won_ = true;
         running_ = false;
 
@@ -339,6 +383,9 @@ void Game::Update(float deltaTime) {
     }
 }
 
+// ============================================================
+// Beacon placement
+// Check the selected type and level limit before adding a beacon
 void Game::PlaceBeacon(CellPos cell) {
     if (!level_ || !level_->IsPathable(cell.x, cell.y)) {
         return;
@@ -369,11 +416,14 @@ void Game::PlaceBeacon(CellPos cell) {
     if (selectedBeaconType_ == 0) {
         for (Pawn& pawn : pawns_) {
             pawn.hasGreenWaypoint = false;
-            pawn.passedGreenWaypoint = false;
+            pawn.visitedGreenBeacons.clear();
         }
     }
 }
 
+// ============================================================
+// Beacon removal
+// Removing a green beacon makes minions choose a new waypoint
 void Game::RemoveBeacon(CellPos cell) {
     for (int i = static_cast<int>(beacons_.size()) - 1; i >= 0; i--) {
         if (beacons_[i].cell == cell) {
@@ -384,7 +434,7 @@ void Game::RemoveBeacon(CellPos cell) {
             if (removedType == 0) {
                 for (Pawn& pawn : pawns_) {
                     pawn.hasGreenWaypoint = false;
-                    pawn.passedGreenWaypoint = false;
+                    pawn.visitedGreenBeacons.clear();
                 }
             }
             return;
@@ -439,7 +489,7 @@ void Game::HandleInput() {
     }
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        Vector2 mouse = GetMousePosition();
+        Vector2 mouse = ScreenToGamePosition(GetMousePosition());
         if (IsInsideRectangle(mouse, ControlPanelX, BoardTop, ControlPanelWidth, GridHeight * CellSize)) {
             HandlePanelClick(mouse);
             return;
@@ -459,7 +509,7 @@ void Game::HandleInput() {
     }
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
-        Vector2 mouse = GetMousePosition();
+        Vector2 mouse = ScreenToGamePosition(GetMousePosition());
         int boardRight = BoardLeft + GridWidth * CellSize;
         int boardBottom = BoardTop + GridHeight * CellSize;
         bool insideBoard = mouse.x >= BoardLeft && mouse.x < boardRight;
