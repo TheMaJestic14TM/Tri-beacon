@@ -14,6 +14,7 @@ const Color GreenColor = {74, 218, 143, 255};
 const Color BlueColor = {75, 173, 255, 255};
 const Color RedColor = {255, 100, 103, 255};
 
+// Hello    
 // ============================================================
 // Beacon setup
 // Give each beacon its color and type when it is placed
