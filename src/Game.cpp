@@ -188,7 +188,8 @@ int Game::FindNearbyCargoStation(CellPos from) const {
     return bestIndex;
 }
 
-// ============================================================
+// ============================================================  i love potatos
+// 
 // Choose the next green waypoint the minion has not visited
 int Game::FindNextGreenBeacon(CellPos from, const vector<CellPos>& visited) const {
     int bestIndex = -1;
