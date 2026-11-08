@@ -5,7 +5,8 @@ namespace tri {
 using namespace std;
 
 namespace {
-// A few colors we use all over the board and UI
+// ==================== COLORS ====================
+// Shared colors keep the screen looking consistent
 const Color Background = {15, 21, 32, 255};
 const Color Panel = {23, 31, 45, 255};
 const Color Text = {226, 235, 245, 255};
@@ -14,7 +15,8 @@ const Color Green = {105, 225, 162, 255};
 const Color Blue = {75, 173, 255, 255};
 const Color Red = {255, 100, 103, 255};
 
-// Find the middle of a cell so everything lines up nicely
+// ==================== DRAWING HELPERS ====================
+// Find the center of a map cell in screen space
 Vector2 CellCenter(CellPos cell) {
     Vector2 center;
     center.x = BoardLeft + cell.x * CellSize + CellSize / 2.0f;
@@ -22,7 +24,7 @@ Vector2 CellCenter(CellPos cell) {
     return center;
 }
 
-// Draw a beacon with a letter so we can tell them apart
+// Draw one beacon and show its letter
 void DrawBeacon(const Beacon& beacon, int selectedType) {
     Vector2 center = CellCenter(beacon.cell);
     float outlineSize = 16.0f;
@@ -36,12 +38,12 @@ void DrawBeacon(const Beacon& beacon, int selectedType) {
     DrawCircleV(center, 10, beacon.color);
 
     const char* letter = "G";
-    if (beacon.type == 1) letter = "B";
-    if (beacon.type == 2) letter = "R";
+    if (beacon.type == BlueBeaconType) letter = "B";
+    if (beacon.type == RedBeaconType) letter = "R";
     DrawText(letter, static_cast<int>(center.x) - 4, static_cast<int>(center.y) - 7, 14, Background);
 }
 
-// Draw one tile and add a little mark for special ground
+// Draw the ground and its small marker
 void DrawTile(Tile tile, int gridX, int gridY) {
     int screenX = BoardLeft + gridX * CellSize;
     int screenY = BoardTop + gridY * CellSize;
@@ -50,7 +52,7 @@ void DrawTile(Tile tile, int gridX, int gridY) {
     if (tile == Tile::Wall) fill = {54, 65, 79, 255};
     if (tile == Tile::Water) fill = {28, 81, 111, 255};
     if (tile == Tile::Hazard) fill = {193, 76, 47, 255};
-    if (tile == Tile::Crystal) fill = {113, 86, 52, 255};
+    if (tile == Tile::CargoStation) fill = {113, 86, 52, 255};
 
     DrawRectangle(screenX + 1, screenY + 1, CellSize - 2, CellSize - 2, fill);
     DrawRectangleLines(screenX, screenY, CellSize, CellSize, Color{36, 48, 64, 255});
@@ -63,39 +65,42 @@ void DrawTile(Tile tile, int gridX, int gridY) {
         DrawCircle(screenX + 20, screenY + 20, 8, Color{255, 176, 79, 255});
         DrawCircle(screenX + 15, screenY + 15, 3, Color{255, 226, 130, 255});
     }
-    if (tile == Tile::Crystal) {
+    if (tile == Tile::CargoStation) {
         DrawPoly({screenX + 20.0f, screenY + 20.0f}, 4, 8, 45, Color{255, 214, 106, 255});
     }
 }
 
-// Put the level objective and current numbers across the top
+// ==================== HEADER AND MAP ====================
+// Show the current objective and run stats
 void DrawHeader(const Game& game) {
     DrawRectangle(0, 0, WindowWidth, BoardTop, Panel);
     DrawText("TRI / BEACON", 32, 19, 25, Text);
     DrawText("Guide the minions and bring the cargo home", 34, 51, 14, Muted);
 
     const GameStats& stats = game.Stats();
-    DrawText("CARGO", 370, 17, 11, Muted);
-    DrawText(TextFormat("%d / %d", stats.cargoDelivered, game.StationCount()), 370, 36, 19, Green);
+    DrawText("LOADS HOME", 370, 17, 11, Muted);
+    DrawText(TextFormat("%d", stats.loadsReturned), 370, 36, 19, Green);
 
     DrawText("HOME", 500, 17, 11, Muted);
-    DrawText(TextFormat("%d", stats.returned), 500, 36, 19, Green);
+    DrawText(TextFormat("%d", stats.returnedHome), 500, 36, 19, Green);
 
     DrawText("LOST", 610, 17, 11, Muted);
     DrawText(TextFormat("%d", stats.lost), 610, 36, 19, Red);
 
-    int minutes = static_cast<int>(stats.elapsedSeconds) / 60;
-    int seconds = static_cast<int>(stats.elapsedSeconds) % 60;
+    int minutes = static_cast<int>(stats.elapsedTime) / 60;
+    int seconds = static_cast<int>(stats.elapsedTime) % 60;
     DrawText("TIME", 705, 17, 11, Muted);
     DrawText(TextFormat("%02d:%02d", minutes, seconds), 705, 36, 19, Text);
 
     if (game.HasWon()) {
-        DrawText("SCORE", 810, 17, 11, Muted);
-        DrawText(TextFormat("%d", stats.score), 810, 36, 19, Color{255, 214, 106, 255});
+        DrawText("RATE", 810, 17, 11, Muted);
+        DrawText(TextFormat("%d%%", static_cast<int>(stats.survivalRate * 100.0f)), 810, 36, 19, Green);
+        DrawText("SCORE", 900, 17, 11, Muted);
+        DrawText(TextFormat("%d", stats.score), 900, 36, 19, Color{255, 214, 106, 255});
     }
 }
 
-// Draw the map first, then stack beacons and minions on top
+// Draw the map first, then put the beacons and minions on top
 void DrawBoard(const Game& game) {
     DrawRectangle(
         BoardLeft - 7,
@@ -116,35 +121,34 @@ void DrawBoard(const Game& game) {
         }
     }
 
-    // Make the spawn spot easy to find
     CellPos start = level->Start();
     DrawCircleV(CellCenter(start), 12, Color{208, 221, 235, 255});
 
-    // Beacons show up once the player drops them on the map
     for (const Beacon& beacon : game.Beacons()) {
         DrawBeacon(beacon, game.SelectedBeaconType());
     }
 
-    // Put living minions over the tiles so they stay visible
-    for (const Pawn& pawn : game.Pawns()) {
-        if (!pawn.alive) {
+    for (const Minion& minion : game.Minions()) {
+        if (!minion.alive) {
             continue;
         }
 
         Vector2 position;
-        position.x = BoardLeft + pawn.position.x * CellSize;
-        position.y = BoardTop + pawn.position.y * CellSize;
+        position.x = BoardLeft + minion.position.x * CellSize;
+        position.y = BoardTop + minion.position.y * CellSize;
 
-        Color pawnColor = {230, 240, 250, 255};
-        if (pawn.cargoCount > 0) {
-            pawnColor = {255, 214, 106, 255};
+        Color minionColor = {230, 240, 250, 255};
+        if (minion.loadsCarried > 0) {
+            minionColor = {255, 214, 106, 255};
         }
 
-        DrawCircleV(position, 7, pawnColor);
+        DrawCircleV(position, 7, minionColor);
         DrawCircleLines(static_cast<int>(position.x), static_cast<int>(position.y), 8, Color{22, 30, 42, 255});
     }
 }
 
+// ==================== CONTROLS ====================
+// Draw a button and dim it when it cannot be used
 void DrawButton(int y, const char* label, bool enabled, Color color) {
     Color fill = Color{40, 49, 63, 255};
     Color labelColor = Muted;
@@ -160,7 +164,7 @@ void DrawButton(int y, const char* label, bool enabled, Color color) {
     DrawText(label, textX, y + 11, 14, labelColor);
 }
 
-// Keep the beacon guide and controls right beside the map
+// Show the objective, beacon guide and buttons
 void DrawControlPanel(const Game& game) {
     int x = ControlPanelX;
     int y = BoardTop;
@@ -171,24 +175,24 @@ void DrawControlPanel(const Game& game) {
     int line = y + 17;
     DrawText("THE JOB", x + 14, line, 17, Text);
     line += 28;
-    DrawText(TextFormat("Deliver all %d cargo loads", game.StationCount()), x + 14, line, 13, Muted);
+    DrawText(TextFormat("Visit all %d stations", game.StationCount()), x + 14, line, 13, Muted);
     line += 20;
-    DrawText("Minions can collect several loads", x + 14, line, 13, Muted);
+    DrawText("Then return to the start", x + 14, line, 13, Muted);
     line += 20;
-    DrawText("Return when no green remains", x + 14, line, 13, Muted);
+    DrawText("Stations stay for every minion", x + 14, line, 13, Muted);
     line += 24;
 
     DrawText("BEACONS", x + 14, line, 17, Text);
     line += 29;
-    DrawText(TextFormat("GREEN     %d / %d", game.BeaconCount(0), game.BeaconLimit(0)), x + 14, line, 12, Green);
+    DrawText(TextFormat("GREEN     %d / %d", game.BeaconCount(GreenBeaconType), game.BeaconLimit(GreenBeaconType)), x + 14, line, 12, Green);
     line += 17;
     DrawText("Guides the minions to a waypoint", x + 14, line, 11, Muted);
     line += 23;
-    DrawText(TextFormat("BLUE       %d / %d", game.BeaconCount(1), game.BeaconLimit(1)), x + 14, line, 12, Blue);
+    DrawText(TextFormat("BLUE       %d / %d", game.BeaconCount(BlueBeaconType), game.BeaconLimit(BlueBeaconType)), x + 14, line, 12, Blue);
     line += 17;
     DrawText("Makes nearby paths cheaper", x + 14, line, 11, Muted);
     line += 23;
-    DrawText(TextFormat("RED         %d / %d", game.BeaconCount(2), game.BeaconLimit(2)), x + 14, line, 12, Red);
+    DrawText(TextFormat("RED         %d / %d", game.BeaconCount(RedBeaconType), game.BeaconLimit(RedBeaconType)), x + 14, line, 12, Red);
     line += 17;
     DrawText("Makes nearby paths more costly", x + 14, line, 11, Muted);
     line += 24;
@@ -198,34 +202,33 @@ void DrawControlPanel(const Game& game) {
     DrawText("1 green   2 blue   3 red", x + 14, line, 12, Muted);
     line += 20;
     DrawText("Left click places   Right click removes", x + 14, line, 11, Muted);
-
+    line += 20;
     DrawButton(StartButtonY, "START RUN  (ENTER)", game.CanStart(), Green);
-    DrawButton(ReleaseButtonY, "RELEASE ONE  (N)", game.CanRelease(), Blue);
     DrawButton(GiveUpButtonY, "GIVE UP  (ESC)", game.HasStarted() && game.IsRunning(), Red);
 
-    if (!game.HasStarted() && game.BeaconCount(0) == 0) {
+    if (!game.HasStarted() && game.BeaconCount(GreenBeaconType) == 0) {
         DrawText("Place a green beacon to start", x + 14, StartButtonY - 22, 11, Red);
     }
 }
 
-// Show the controls in separate groups so they are easy to scan
+// Keep the keyboard controls easy to scan
 void DrawFooter() {
     int y = BoardTop + GridHeight * CellSize + 7;
     DrawRectangle(0, y - 4, WindowWidth, FooterHeight, Panel);
 
-    const int groupX[5] = {32, 286, 540, 794, 1048};
-    const char* keys[5] = {"ENTER", "N", "SPACE", "R", "F11"};
-    const char* actions[5] = {"Run", "Release one", "Pause", "Reset level", "Fullscreen"};
+    const int groupX[4] = {32, 350, 668, 986};
+    const char* keys[4] = {"ENTER", "SPACE", "R", "F11"};
+    const char* actions[4] = {"Run", "Pause", "Reset level", "Fullscreen"};
 
-    for (int i = 0; i < 5; i++) {
-        DrawRectangle(groupX[i], y + 9, 190, 36, Color{31, 42, 58, 255});
-        DrawRectangleLines(groupX[i], y + 9, 190, 36, Color{52, 68, 88, 255});
+    for (int i = 0; i < 4; i++) {
+        DrawRectangle(groupX[i], y + 9, 250, 36, Color{31, 42, 58, 255});
+        DrawRectangleLines(groupX[i], y + 9, 250, 36, Color{52, 68, 88, 255});
         DrawText(keys[i], groupX[i] + 10, y + 20, 11, Green);
-        DrawText(actions[i], groupX[i] + 78, y + 20, 11, Text);
+        DrawText(actions[i], groupX[i] + 84, y + 20, 11, Text);
     }
 }
 
-// Leave a message up while it matters or after the run ends
+// Show short messages while they are still useful
 void DrawNotice(const Game& game) {
     const Notice& notice = game.CurrentNotice();
     if (notice.timeLeft <= 0.0f && game.IsRunning()) {
@@ -243,7 +246,7 @@ void DrawNotice(const Game& game) {
     DrawText(notice.message.c_str(), BoardLeft + 10, noticeY + 3, 12, Text);
 }
 
-// Darken the board when the game is paused or finished
+// Darken the map when the game is paused or over
 void DrawEndOverlay(const Game& game) {
     if (!game.IsPaused() && game.IsRunning()) {
         return;
@@ -270,7 +273,8 @@ void DrawEndOverlay(const Game& game) {
 }
 }
 
-// Pull the whole screen together for this frame
+// ==================== MAIN DRAW CALL ====================
+// Draw one complete frame
 void DrawGame(const Game& game) {
     BeginDrawing();
     ClearBackground(Background);
