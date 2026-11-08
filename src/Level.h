@@ -3,39 +3,33 @@
 #include "GameTypes.h"
 
 namespace tri {
-// Stores the map and tracks each cargo station
+// Keeps the map tiles and cargo stations in one place
 class Level {
 public:
-    // Every spot on the grid has one kind of ground
+    // The board is a fixed grid of game tiles
     using Grid = std::array<std::array<Tile, GridWidth>, GridHeight>;
 
     explicit Level(LevelDefinition definition);
 
-    // Put the map back the way it was for another try
+    // Restore the map before a new run
     void Reset();
 
-    // Small map checks used for movement and routes
+    // Basic checks used by movement and pathfinding
     bool IsInside(int x, int y) const;
     bool IsPathable(int x, int y) const;
     int Distance(CellPos a, CellPos b) const;
     Tile At(int x, int y) const;
-    bool IsCargoAvailable(int stationIndex) const;
-    bool ClaimCargoStation(int stationIndex);
-    void ReleaseCargoStation(int stationIndex);
-    void DeliverCargoStation(int stationIndex);
 
-    // Let other parts of the game look at the map
+    // Let the game and renderer read the map data
     const Grid& Tiles() const { return tiles_; }
     const LevelDefinition& Definition() const { return definition_; }
     const std::vector<CellPos>& CargoStations() const { return cargoStations_; }
     CellPos Start() const { return definition_.start; }
 
 private:
-    // Save a clean copy so a restart can put everything back
+    // Keep the original map so Reset can restore it
     LevelDefinition definition_;
     Grid tiles_{};
     std::vector<CellPos> cargoStations_;
-    std::vector<bool> cargoClaimed_;
-    std::vector<bool> cargoDelivered_;
 };
 }
