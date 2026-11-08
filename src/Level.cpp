@@ -12,7 +12,8 @@ using namespace std;
 namespace {
 using Json = nlohmann::json;
 
-// Look up one of the extra properties we added in Tiled
+// ==================== TILED HELPERS ====================
+// Find a custom property by its name
 Json FindProperty(const Json& owner, const string& name) {
     if (!owner.contains("properties") || !owner["properties"].is_array()) {
         return nullptr;
@@ -27,14 +28,16 @@ Json FindProperty(const Json& owner, const string& name) {
     return nullptr;
 }
 
+// Turn a Tiled tile name into a game tile
 Tile TileFromName(const string& name) {
     if (name == "wall") return Tile::Wall;
     if (name == "water") return Tile::Water;
-    if (name == "cargo") return Tile::Crystal;
+    if (name == "cargo") return Tile::CargoStation;
     if (name == "hazard") return Tile::Hazard;
     return Tile::Floor;
 }
 
+// Read an integer setting or keep its default
 int ReadIntProperty(const Json& map, const string& name, int defaultValue) {
     Json value = FindProperty(map, name);
     if (!value.is_number_integer()) {
@@ -43,7 +46,7 @@ int ReadIntProperty(const Json& map, const string& name, int defaultValue) {
     return value.get<int>();
 }
 
-// Start has to be on the map and somewhere safe
+// The start tile has to be inside the map and safe
 bool IsSafeCell(const LevelDefinition& level, CellPos cell) {
     bool insideMap = cell.x >= 0 && cell.y >= 0;
     insideMap = insideMap && cell.x < GridWidth && cell.y < GridHeight;
@@ -55,7 +58,8 @@ bool IsSafeCell(const LevelDefinition& level, CellPos cell) {
     return tile != Tile::Wall && tile != Tile::Hazard;
 }
 
-// Open a Tiled map and make sure it has what the game needs
+// ==================== LOAD ONE MAP ====================
+// Read the map, tileset and start point from a Tiled JSON file
 bool LoadDefinition(const filesystem::path& file, LevelDefinition& level) {
     try {
         ifstream mapFile(file);
@@ -66,7 +70,7 @@ bool LoadDefinition(const filesystem::path& file, LevelDefinition& level) {
         Json map;
         mapFile >> map;
 
-        // For now every level uses the same square grid
+        // This game uses a fixed size grid for every map
         bool correctFormat = map.value("orientation", string{}) == "orthogonal";
         correctFormat = correctFormat && !map.value("infinite", true);
         correctFormat = correctFormat && map.value("width", 0) == GridWidth;
@@ -89,12 +93,11 @@ bool LoadDefinition(const filesystem::path& file, LevelDefinition& level) {
         level.blueBeaconLimit = ReadIntProperty(map, "blueBeaconLimit", level.blueBeaconLimit);
         level.redBeaconLimit = ReadIntProperty(map, "redBeaconLimit", level.redBeaconLimit);
 
-        // Tiled writes a number for each tile
-        // Match those numbers with the ground types in the tileset
         if (!map.contains("tilesets") || map["tilesets"].empty()) {
             return false;
         }
 
+        // Match Tiled tile IDs with the game tile types
         unordered_map<unsigned int, Tile> terrainByGid;
         for (const Json& tilesetReference : map["tilesets"]) {
             unsigned int firstGid = tilesetReference.at("firstgid").get<unsigned int>();
@@ -123,6 +126,7 @@ bool LoadDefinition(const filesystem::path& file, LevelDefinition& level) {
             }
         }
 
+        // Read the terrain grid and the start marker
         bool foundTerrain = false;
         bool foundStart = false;
         if (!map.contains("layers") || !map["layers"].is_array()) {
@@ -170,7 +174,6 @@ bool LoadDefinition(const filesystem::path& file, LevelDefinition& level) {
                 int objectX = static_cast<int>(object.value("x", 0.0) / CellSize);
                 int objectY = static_cast<int>(object.value("y", 0.0) / CellSize);
 
-                // Tiled measures tile objects from the bottom edge
                 if (object.contains("gid")) {
                     objectY--;
                 }
@@ -184,10 +187,11 @@ bool LoadDefinition(const filesystem::path& file, LevelDefinition& level) {
             return false;
         }
 
+        // A playable map needs cargo and valid beacon limits
         int stationCount = 0;
         for (const auto& row : level.terrain) {
             for (Tile tile : row) {
-                if (tile == Tile::Crystal) {
+                if (tile == Tile::CargoStation) {
                     stationCount++;
                 }
             }
@@ -197,16 +201,15 @@ bool LoadDefinition(const filesystem::path& file, LevelDefinition& level) {
         validBeaconLimits = validBeaconLimits && level.blueBeaconLimit >= 0;
         validBeaconLimits = validBeaconLimits && level.redBeaconLimit >= 0;
 
-        // Skip maps without a start, cargo stations or usable rules
         return stationCount > 0 && validBeaconLimits;
     } catch (const exception&) {
-        // A half-finished map should not stop the whole game loading
         return false;
     }
 }
 }
 
-// Pick up the maps that are ready and sort them by name
+// ==================== LOAD LEVEL CATALOG ====================
+// Find every valid Tiled map in the levels folder
 vector<LevelDefinition> LoadLevelCatalog(const filesystem::path& directory) {
     vector<filesystem::path> mapFiles;
     error_code error;
@@ -234,39 +237,43 @@ vector<LevelDefinition> LoadLevelCatalog(const filesystem::path& directory) {
     return levels;
 }
 
+// ==================== LEVEL DATA ====================
 Level::Level(LevelDefinition definition)
     : definition_(move(definition)) {
     Reset();
 }
 
+// Restore the original tiles and rebuild the station list
 void Level::Reset() {
     tiles_ = definition_.terrain;
     cargoStations_.clear();
 
     for (int y = 0; y < GridHeight; y++) {
         for (int x = 0; x < GridWidth; x++) {
-            if (tiles_[y][x] == Tile::Crystal) {
+            if (tiles_[y][x] == Tile::CargoStation) {
                 cargoStations_.push_back({x, y});
             }
         }
     }
 
-    cargoClaimed_.assign(cargoStations_.size(), false);
-    cargoDelivered_.assign(cargoStations_.size(), false);
 }
 
+// Check whether a grid position is inside the map
 bool Level::IsInside(int x, int y) const {
     return x >= 0 && y >= 0 && x < GridWidth && y < GridHeight;
 }
 
+// Walls block movement, while hazards can still be entered
 bool Level::IsPathable(int x, int y) const {
     return IsInside(x, y) && tiles_[y][x] != Tile::Wall;
 }
 
+// A simple grid distance used to pick nearby goals
 int Level::Distance(CellPos a, CellPos b) const {
     return abs(a.x - b.x) + abs(a.y - b.y);
 }
 
+// Return a wall when the position is outside the map
 Tile Level::At(int x, int y) const {
     if (!IsInside(x, y)) {
         return Tile::Wall;
@@ -274,41 +281,4 @@ Tile Level::At(int x, int y) const {
     return tiles_[y][x];
 }
 
-bool Level::IsCargoAvailable(int stationIndex) const {
-    if (stationIndex < 0 || stationIndex >= static_cast<int>(cargoStations_.size())) {
-        return false;
-    }
-
-    return !cargoClaimed_[stationIndex] && !cargoDelivered_[stationIndex];
-}
-
-bool Level::ClaimCargoStation(int stationIndex) {
-    if (!IsCargoAvailable(stationIndex)) {
-        return false;
-    }
-
-    cargoClaimed_[stationIndex] = true;
-    return true;
-}
-
-void Level::ReleaseCargoStation(int stationIndex) {
-    if (stationIndex >= 0 && stationIndex < static_cast<int>(cargoStations_.size())) {
-        cargoClaimed_[stationIndex] = false;
-    }
-}
-
-void Level::DeliverCargoStation(int stationIndex) {
-    if (stationIndex < 0 || stationIndex >= static_cast<int>(cargoStations_.size())) {
-        return;
-    }
-
-    if (!cargoClaimed_[stationIndex]) {
-        return;
-    }
-
-    CellPos station = cargoStations_[stationIndex];
-    cargoClaimed_[stationIndex] = false;
-    cargoDelivered_[stationIndex] = true;
-    tiles_[station.y][station.x] = Tile::Floor;
-}
 }

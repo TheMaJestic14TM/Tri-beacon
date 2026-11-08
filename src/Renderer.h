@@ -3,6 +3,6 @@
 #include "Game.h"
 
 namespace tri {
-// Draw the map, the guide and whatever the player needs to see
+// Draw the current game screen
 void DrawGame(const Game& game);
 }
