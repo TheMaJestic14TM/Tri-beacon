@@ -2,6 +2,7 @@
 #include "Pathfinder.h"
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 
 #ifndef TRI_BEACON_LEVEL_DIR
 #define TRI_BEACON_LEVEL_DIR "levels"
@@ -65,6 +66,7 @@ void Game::Reset() {
     notice_ = {};
     selectedBeaconType_ = GreenBeaconType;
     beaconsUsedForScore_ = 0;
+    spawnMinions_ = false;
     started_ = false;
     paused_ = false;
     running_ = true;
@@ -115,11 +117,7 @@ bool Game::CanStart() const {
 }
 
 // ==================== MINION SPAWNING ====================
-// The new minion spawning logic can go here
-
-// ==================== OLD VERSION ====================
-// This old version spawned minions automatically
-/*
+// Spawns minions automatically
 void Game::SpawnMinion() {
     CellPos start = level_->Start();
     Vector2 position = {start.x + 0.5f, start.y + 0.5f};
@@ -138,7 +136,7 @@ void Game::UpdateSpawner(float deltaTime) {
         SpawnMinion();
     }
 }
-*/
+
 
 // ==================== RUN CONTROLS ====================
 void Game::StartRun() {
@@ -150,6 +148,7 @@ void Game::StartRun() {
     }
 
     started_ = true;
+    spawnMinions_ = true;
     beaconsUsedForScore_ = static_cast<int>(beacons_.size());
     SetNotice("Run started");
 }
@@ -304,7 +303,8 @@ void Game::UpdateMinion(Minion& minion, float deltaTime) {
         if (minion.loadsCarried > 0) {
             stats_.loadsReturned += minion.loadsCarried;
         }
-
+        
+        spawnMinions_ = false;
         stats_.returnedHome++;
         minion.loadsCarried = 0;
         minion.alive = false;
@@ -347,7 +347,10 @@ void Game::FinishRun() {
 
     // Use the run time, survival rate and beacons for the final score
     float beaconCount = static_cast<float>(max(1, beaconsUsedForScore_));
-    float score = BaseScore * stats_.survivalRate / (stats_.scoreTime * beaconCount);
+    // Original score was: BaseScore * stats_.survivalRate / (stats_.scoreTime * beaconCount);
+    std::cout <<  stats_.loadsReturned << " " << stats_.elapsedTime << " " << beaconCount << std::endl;
+    float score = 1000 * stats_.loadsReturned / (stats_.elapsedTime * beaconCount);
+    std::cout << score << std::endl;
     if (stats_.survivalRate >= 0.75f) {
         score *= 1.75f;
     }
@@ -364,6 +367,13 @@ void Game::Update(float deltaTime) {
     if (!running_ || paused_ || !started_ || !level_) {
         return;
     }
+    
+    stats_.scoreTime += deltaTime;
+
+    if (spawnMinions_)
+    {
+        UpdateSpawner(deltaTime);
+    }
 
     notice_.timeLeft = max(0.0f, notice_.timeLeft - deltaTime);
     stats_.elapsedTime += deltaTime;
@@ -378,7 +388,12 @@ void Game::Update(float deltaTime) {
             minions_.erase(minions_.begin() + i);
         }
     }
-
+    
+    if (minions_.empty() and !spawnMinions_)
+    {
+        FinishRun();
+    }
+    
 }
 
 // ==================== BEACON PLACEMENT ====================
