@@ -45,6 +45,8 @@ private:
     void PlaceBeacon(CellPos cell);
     void RemoveBeacon(CellPos cell);
     void HandlePanelClick(Vector2 mouse);
+    void SpawnMinion();
+    void UpdateSpawner(float deltaTime);
 
     // Current map and things placed or moving on it
     std::unique_ptr<Level> level_;
@@ -56,7 +58,9 @@ private:
     int beaconsUsedForScore_ = 0;
     bool running_ = true;
     bool started_ = false;
+    bool spawnMinions_ = false;
     bool paused_ = false;
     bool won_ = false;
+    float spawnTimer_ = 0.0f;
 };
 }
