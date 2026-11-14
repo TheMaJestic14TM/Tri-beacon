@@ -266,6 +266,15 @@ void DrawEndOverlay(const Game& game) {
     int titleX = BoardLeft + GridWidth * CellSize / 2 - MeasureText(title, 32) / 2;
     int titleY = BoardTop + GridHeight * CellSize / 2 - 36;
     DrawText(title, titleX, titleY, 32, Text);
+    
+    const char* scoreText = TextFormat("SCORE: %d", game.Stats().score) ;
+    int scoreX = BoardLeft + GridWidth * CellSize / 2 - MeasureText(scoreText, 16) / 2;
+    int scoreY = titleY + 100;
+    
+    if (game.HasWon())
+    {
+        DrawText(scoreText, scoreX, scoreY, 16, Text);
+    }
 
     const char* hint = "Press R to try again";
     int hintX = BoardLeft + GridWidth * CellSize / 2 - MeasureText(hint, 16) / 2;
