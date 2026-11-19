@@ -195,6 +195,9 @@ copy /Y "$(ProjectDir)lib\libstdc++-6.dll" "$(OutDir)" &gt;nul</Command>
     <ClInclude Include="src\third_party\nlohmann\json.hpp" />
     <None Include="src\third_party\nlohmann\LICENSE.MIT" />
     <None Include="levels\01_beacon_basics.tmj" />
+    <None Include="levels\02_last_safe_span.tmj" />
+    <None Include="levels\03_relay_rift.tmj" />
+    <None Include="levels\04_tidal_switchyard.tmj" />
     <None Include="tiles\terrain.tsj" />
     <None Include="tiles\terrain.png" />
   </ItemGroup>

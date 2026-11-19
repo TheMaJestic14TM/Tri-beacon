@@ -4,23 +4,25 @@
 #include <array>
 #include <filesystem>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace tri {
 // ==================== GAME SETTINGS ====================
 // Grid size, beacon IDs and screen layout are shared across the game
-constexpr int GridWidth = 24;
-constexpr int GridHeight = 16;
-constexpr int CellSize = 40;
+constexpr int GridWidth = 32;
+constexpr int GridHeight = 22;
+constexpr int CellSize = 32;
 constexpr int BoardLeft = 32;
-constexpr int BoardTop = 88;
+constexpr int BoardTop = 72;
 constexpr int SidePanelWidth = 280;
 constexpr int WindowWidth = GridWidth * CellSize + BoardLeft * 2 + SidePanelWidth;
-constexpr int FooterHeight = 76;
+constexpr int FooterHeight = 52;
 constexpr int WindowHeight = GridHeight * CellSize + BoardTop + FooterHeight;
-constexpr int CargoAreaRadius = 1;
+constexpr int CargoAreaRadius = 2;
 constexpr int BeaconAreaRadius = 2;
-constexpr int BaseScore = 10000;
+// At this cost, the beacon part of the score is cut in half
+constexpr float BeaconCostScale = 25.0f;
 constexpr int GreenBeaconType = 0;
 constexpr int BlueBeaconType = 1;
 constexpr int RedBeaconType = 2;
@@ -92,7 +94,18 @@ struct Beacon {
 };
 
 // Ground types that can show up on a map
-enum class Tile { Floor, Wall, Water, CargoStation, Hazard };
+enum class Tile {
+    Floor,
+    Wall,
+    Water,
+    CargoStation,
+    Hazard,
+    Bridge,
+    PortalAEntry,
+    PortalAExit,
+    PortalBEntry,
+    PortalBExit
+};
 
 struct GameStats {
     // The HUD uses these values to show run progress
@@ -101,7 +114,6 @@ struct GameStats {
     int lost = 0;
     int loadsReturned = 0;
     float elapsedTime = 0.0f;
-    float scoreTime = 0.0f;
     float survivalRate = 0.0f;
     int score = 0;
 };
@@ -113,13 +125,12 @@ struct Notice {
 };
 
 struct LevelDefinition {
-    // One map and its beacon limits loaded from a Tiled file
+    // One map and its events loaded from a Tiled file
     std::string name;
     std::array<std::array<Tile, GridWidth>, GridHeight> terrain{};
     CellPos start{};
-    int greenBeaconLimit = 1;
-    int blueBeaconLimit = 0;
-    int redBeaconLimit = 0;
+    float bridgeCollapseSeconds = 0.0f;
+    float bridgeWarningSeconds = 5.0f;
 };
 
 // Read all valid maps from the levels folder

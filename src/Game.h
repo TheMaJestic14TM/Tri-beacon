@@ -25,7 +25,7 @@ public:
     const Notice& CurrentNotice() const { return notice_; }
     int SelectedBeaconType() const { return selectedBeaconType_; }
     int BeaconCount(int type) const;
-    int BeaconLimit(int type) const;
+    int RunBeaconCost() const { return runBeaconCost_; }
     int StationCount() const;
     bool CanStart() const;
     bool IsPaused() const { return paused_; }
@@ -36,6 +36,7 @@ public:
 private:
     // Small helpers for the current run
     void SetNotice(const std::string& message);
+    void ChangeLevel(int direction);
     int FindStationInRange(const Minion& minion) const;
     bool HasVisitedStation(const Minion& minion, int stationIndex) const;
     bool VisitedEveryStation(const Minion& minion) const;
@@ -49,18 +50,21 @@ private:
     void UpdateSpawner(float deltaTime);
 
     // Current map and things placed or moving on it
+    std::vector<LevelDefinition> levelCatalog_;
+    int currentLevelIndex_ = 0;
     std::unique_ptr<Level> level_;
     std::vector<Minion> minions_;
     std::vector<Beacon> beacons_;
     GameStats stats_{};
     Notice notice_{};
     int selectedBeaconType_ = GreenBeaconType;
-    int beaconsUsedForScore_ = 0;
+    int runBeaconCost_ = 0;
     bool running_ = true;
     bool started_ = false;
     bool spawnMinions_ = false;
     bool paused_ = false;
     bool won_ = false;
     float spawnTimer_ = 0.0f;
+    bool bridgeWarningShown_ = false;
 };
 }

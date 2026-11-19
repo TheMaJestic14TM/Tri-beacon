@@ -112,6 +112,7 @@ vector<CellPos> Pathfinder::FindPath(
             float estimate = level.Distance(next, to) * 0.25f;
             open.push({newCost + estimate, next});
         }
+
     }
 
     if (!visited[to.y][to.x]) {

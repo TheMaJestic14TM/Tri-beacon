@@ -1,4 +1,5 @@
 #include "Renderer.h"
+#include <cmath>
 #include <string>
 
 namespace tri {
@@ -27,46 +28,89 @@ Vector2 CellCenter(CellPos cell) {
 // Draw one beacon and show its letter
 void DrawBeacon(const Beacon& beacon, int selectedType) {
     Vector2 center = CellCenter(beacon.cell);
-    float outlineSize = 16.0f;
+    float outlineSize = CellSize * 0.40f;
 
     if (selectedType == beacon.type) {
-        outlineSize = 21.0f;
+        outlineSize = CellSize * 0.49f;
     }
 
-    DrawCircleV(center, 19, ColorAlpha(beacon.color, 0.18f));
+    DrawCircleV(center, CellSize * 0.43f, ColorAlpha(beacon.color, 0.18f));
     DrawCircleLines(static_cast<int>(center.x), static_cast<int>(center.y), outlineSize, beacon.color);
-    DrawCircleV(center, 10, beacon.color);
+    DrawCircleV(center, CellSize * 0.25f, beacon.color);
 
     const char* letter = "G";
     if (beacon.type == BlueBeaconType) letter = "B";
     if (beacon.type == RedBeaconType) letter = "R";
-    DrawText(letter, static_cast<int>(center.x) - 4, static_cast<int>(center.y) - 7, 14, Background);
+    DrawText(letter, static_cast<int>(center.x) - 4, static_cast<int>(center.y) - 6, 12, Background);
 }
 
 // Draw the ground and its small marker
-void DrawTile(Tile tile, int gridX, int gridY) {
+void DrawTile(Tile tile, int gridX, int gridY, double time) {
     int screenX = BoardLeft + gridX * CellSize;
     int screenY = BoardTop + gridY * CellSize;
+    int centerX = screenX + CellSize / 2;
+    int centerY = screenY + CellSize / 2;
     Color fill = {27, 37, 51, 255};
 
     if (tile == Tile::Wall) fill = {54, 65, 79, 255};
     if (tile == Tile::Water) fill = {28, 81, 111, 255};
     if (tile == Tile::Hazard) fill = {193, 76, 47, 255};
     if (tile == Tile::CargoStation) fill = {113, 86, 52, 255};
+    if (tile == Tile::Bridge) fill = {32, 76, 105, 255};
+    if (tile == Tile::PortalAEntry || tile == Tile::PortalAExit) fill = {25, 69, 91, 255};
+    if (tile == Tile::PortalBEntry || tile == Tile::PortalBExit) fill = {59, 42, 99, 255};
 
     DrawRectangle(screenX + 1, screenY + 1, CellSize - 2, CellSize - 2, fill);
     DrawRectangleLines(screenX, screenY, CellSize, CellSize, Color{36, 48, 64, 255});
 
     if (tile == Tile::Water) {
-        DrawCircle(screenX + 20, screenY + 20, 5, Color{83, 177, 213, 255});
-        DrawCircle(screenX + 29, screenY + 12, 2, Color{83, 177, 213, 255});
+        DrawLine(screenX + 6, centerY - 4, screenX + CellSize - 6, centerY - 4, Color{83, 177, 213, 255});
+        DrawLine(screenX + 9, centerY + 4, screenX + CellSize - 9, centerY + 4, Color{83, 177, 213, 255});
     }
     if (tile == Tile::Hazard) {
-        DrawCircle(screenX + 20, screenY + 20, 8, Color{255, 176, 79, 255});
-        DrawCircle(screenX + 15, screenY + 15, 3, Color{255, 226, 130, 255});
+        float flicker = static_cast<float>(sin(time * 7.0 + gridX * 0.8 + gridY)) * 2.0f;
+        DrawCircle(centerX, centerY + 3, CellSize * 0.30f, Color{83, 34, 29, 255});
+        DrawTriangle(
+            {centerX - 10.0f, centerY + 8.0f},
+            {centerX + flicker, centerY - 11.0f},
+            {centerX + 10.0f, centerY + 8.0f},
+            Color{255, 112, 42, 255});
+        DrawTriangle(
+            {centerX - 5.0f, centerY + 6.0f},
+            {centerX + flicker * 0.5f, centerY - 5.0f},
+            {centerX + 5.0f, centerY + 6.0f},
+            Color{255, 218, 92, 255});
+        DrawLine(centerX - 12, centerY + 11, centerX - 7, centerY + 8, Color{255, 91, 36, 255});
+        DrawLine(centerX + 8, centerY + 10, centerX + 13, centerY + 7, Color{255, 91, 36, 255});
     }
     if (tile == Tile::CargoStation) {
-        DrawPoly({screenX + 20.0f, screenY + 20.0f}, 4, 8, 45, Color{255, 214, 106, 255});
+        DrawPoly({static_cast<float>(centerX), static_cast<float>(centerY)}, 4, CellSize * 0.24f, 45, Color{255, 214, 106, 255});
+    }
+    if (tile == Tile::Bridge) {
+        DrawRectangle(screenX + 4, screenY + 4, CellSize - 8, CellSize - 8, Color{112, 72, 45, 255});
+        for (int plank = 0; plank < 3; plank++) {
+            int plankY = screenY + 7 + plank * (CellSize - 14) / 3;
+            DrawLine(screenX + 5, plankY, screenX + CellSize - 5, plankY, Color{204, 148, 91, 255});
+        }
+        DrawLine(screenX + 6, screenY + 5, screenX + 6, screenY + CellSize - 5, Color{230, 188, 117, 255});
+        DrawLine(screenX + CellSize - 6, screenY + 5, screenX + CellSize - 6, screenY + CellSize - 5, Color{230, 188, 117, 255});
+    }
+    if (tile == Tile::PortalAEntry || tile == Tile::PortalAExit ||
+        tile == Tile::PortalBEntry || tile == Tile::PortalBExit) {
+        bool isPortalA = tile == Tile::PortalAEntry || tile == Tile::PortalAExit;
+        bool isEntry = tile == Tile::PortalAEntry || tile == Tile::PortalBEntry;
+        float pulse = isEntry ? static_cast<float>(sin(time * 4.0 + gridX + gridY)) * 2.0f : 0.0f;
+        Color portalColor = isPortalA ? Color{94, 222, 255, 255} : Color{192, 118, 255, 255};
+        DrawCircleLines(centerX, centerY, CellSize * 0.34f + pulse, portalColor);
+        DrawCircleLines(centerX, centerY, CellSize * 0.20f, Color{223, 250, 255, 255});
+
+        // Entrances have a hollow center and exits have a bright center
+        if (isEntry) {
+            DrawCircleLines(centerX, centerY, CellSize * 0.08f, portalColor);
+        } else {
+            DrawCircle(centerX, centerY, CellSize * 0.08f, portalColor);
+        }
+
     }
 }
 
@@ -115,9 +159,36 @@ void DrawBoard(const Game& game) {
     }
 
     const Level::Grid& tiles = level->Tiles();
+    double time = GetTime();
     for (int y = 0; y < GridHeight; y++) {
         for (int x = 0; x < GridWidth; x++) {
-            DrawTile(tiles[y][x], x, y);
+            DrawTile(tiles[y][x], x, y, time);
+
+            // Flash the bridge while it is about to collapse
+            bool bridgeWarning = level->HasBridgeEvent() && !level->BridgeCollapsed();
+            bridgeWarning = bridgeWarning && level->BridgeCollapseRemaining() <= level->Definition().bridgeWarningSeconds;
+            if (tiles[y][x] == Tile::Bridge && bridgeWarning) {
+                float pulse = 0.4f + 0.6f * static_cast<float>(sin(time * 12.0));
+                int tileX = BoardLeft + x * CellSize;
+                int tileY = BoardTop + y * CellSize;
+                DrawRectangleLines(tileX + 2, tileY + 2, CellSize - 4, CellSize - 4,
+                    ColorAlpha(Color{255, 91, 65, 255}, pulse));
+                DrawLine(tileX + 7, tileY + 7, tileX + CellSize - 8, tileY + CellSize - 8,
+                    ColorAlpha(Color{255, 195, 102, 255}, pulse));
+            }
+        }
+    }
+
+    // A quick flash makes the bridge collapse easy to notice
+    float collapseEffect = level->BridgeCollapseEffectTime();
+    if (collapseEffect > 0.0f) {
+        for (CellPos cell : level->BridgeCells()) {
+            Vector2 center = CellCenter(cell);
+            float radius = CellSize * (0.25f + (1.0f - collapseEffect) * 0.65f);
+            Color flash = ColorAlpha(Color{255, 177, 72, 255}, collapseEffect);
+            DrawCircleLines(static_cast<int>(center.x), static_cast<int>(center.y), radius, flash);
+            DrawLine(static_cast<int>(center.x - 9), static_cast<int>(center.y - 7),
+                static_cast<int>(center.x + 8), static_cast<int>(center.y + 8), flash);
         }
     }
 
@@ -180,19 +251,21 @@ void DrawControlPanel(const Game& game) {
     DrawText("Then return to the start", x + 14, line, 13, Muted);
     line += 20;
     DrawText("Stations stay for every minion", x + 14, line, 13, Muted);
+    line += 20;
+    DrawText("Cargo range is 5x5", x + 14, line, 13, Muted);
     line += 24;
 
     DrawText("BEACONS", x + 14, line, 17, Text);
     line += 29;
-    DrawText(TextFormat("GREEN     %d / %d", game.BeaconCount(GreenBeaconType), game.BeaconLimit(GreenBeaconType)), x + 14, line, 12, Green);
+    DrawText(TextFormat("GREEN     %d   COST 2", game.BeaconCount(GreenBeaconType)), x + 14, line, 12, Green);
     line += 17;
     DrawText("Guides the minions to a waypoint", x + 14, line, 11, Muted);
     line += 23;
-    DrawText(TextFormat("BLUE       %d / %d", game.BeaconCount(BlueBeaconType), game.BeaconLimit(BlueBeaconType)), x + 14, line, 12, Blue);
+    DrawText(TextFormat("BLUE       %d   COST 1", game.BeaconCount(BlueBeaconType)), x + 14, line, 12, Blue);
     line += 17;
     DrawText("Makes nearby paths cheaper", x + 14, line, 11, Muted);
     line += 23;
-    DrawText(TextFormat("RED         %d / %d", game.BeaconCount(RedBeaconType), game.BeaconLimit(RedBeaconType)), x + 14, line, 12, Red);
+    DrawText(TextFormat("RED         %d   COST 1", game.BeaconCount(RedBeaconType)), x + 14, line, 12, Red);
     line += 17;
     DrawText("Makes nearby paths more costly", x + 14, line, 11, Muted);
     line += 24;
@@ -203,6 +276,34 @@ void DrawControlPanel(const Game& game) {
     line += 20;
     DrawText("Left click places   Right click removes", x + 14, line, 11, Muted);
     line += 20;
+    DrawText("Page Up / Down changes level", x + 14, line, 11, Muted);
+    line += 20;
+
+    const Level* level = game.CurrentLevel();
+    if (level && !level->PortalLinks().empty()) {
+        DrawText("A IN sends to A OUT", x + 14, line, 11, Color{94, 222, 255, 255});
+        line += 17;
+        DrawText("B IN sends to B OUT", x + 14, line, 11, Color{192, 118, 255, 255});
+        line += 20;
+    }
+
+    if (game.HasStarted()) {
+        DrawText(TextFormat("RUN BEACON COST  %d", game.RunBeaconCost()), x + 14, line, 12, Color{255, 214, 106, 255});
+        line += 20;
+    } else {
+        DrawText("Setup beacons are free", x + 14, line, 11, Muted);
+        line += 20;
+    }
+
+    if (level && level->HasBridgeEvent() && level->BridgeCollapsed()) {
+        DrawText("BRIDGE COLLAPSED", x + 14, line, 12, Red);
+        line += 20;
+    } else if (level && level->HasBridgeEvent() &&
+        level->BridgeCollapseRemaining() <= level->Definition().bridgeWarningSeconds) {
+        DrawText("BRIDGE IS UNSTABLE", x + 14, line, 12, Color{255, 153, 79, 255});
+        line += 20;
+    }
+
     DrawButton(StartButtonY, "START RUN  (ENTER)", game.CanStart(), Green);
     DrawButton(GiveUpButtonY, "GIVE UP  (ESC)", game.HasStarted() && game.IsRunning(), Red);
 

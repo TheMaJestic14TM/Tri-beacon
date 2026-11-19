@@ -24,6 +24,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="levels\01_beacon_basics.tmj"><Filter>Level Data</Filter></None>
+    <None Include="levels\02_last_safe_span.tmj"><Filter>Level Data</Filter></None>
+    <None Include="levels\03_relay_rift.tmj"><Filter>Level Data</Filter></None>
+    <None Include="levels\04_tidal_switchyard.tmj"><Filter>Level Data</Filter></None>
     <None Include="tiles\terrain.tsj"><Filter>Tileset</Filter></None>
     <None Include="tiles\terrain.png"><Filter>Tileset</Filter></None>
     <None Include="src\third_party\nlohmann\LICENSE.MIT"><Filter>Level Data</Filter></None>
