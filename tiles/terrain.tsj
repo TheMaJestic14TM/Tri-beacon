@@ -3,13 +3,13 @@
   "version": "1.10",
   "tiledversion": "1.10.2",
   "name": "TriBeacon",
-  "tilewidth": 40,
-  "tileheight": 40,
-  "tilecount": 9,
-  "columns": 9,
+  "tilewidth": 32,
+  "tileheight": 32,
+  "tilecount": 14,
+  "columns": 14,
   "image": "terrain.png",
-  "imagewidth": 360,
-  "imageheight": 40,
+  "imagewidth": 448,
+  "imageheight": 32,
   "tiles": [
     { "id": 0, "type": "floor", "properties": [{ "name": "terrain", "type": "string", "value": "floor" }] },
     { "id": 1, "type": "wall", "properties": [{ "name": "terrain", "type": "string", "value": "wall" }] },
@@ -19,6 +19,11 @@
     { "id": 5, "type": "goal", "properties": [{ "name": "role", "type": "string", "value": "goal" }] },
     { "id": 6, "type": "hazard", "properties": [{ "name": "terrain", "type": "string", "value": "hazard" }] },
     { "id": 7, "type": "blue beacon", "properties": [{ "name": "role", "type": "string", "value": "blueBeacon" }] },
-    { "id": 8, "type": "red beacon", "properties": [{ "name": "role", "type": "string", "value": "redBeacon" }] }
+    { "id": 8, "type": "red beacon", "properties": [{ "name": "role", "type": "string", "value": "redBeacon" }] },
+    { "id": 9, "type": "bridge", "properties": [{ "name": "terrain", "type": "string", "value": "bridge" }] },
+    { "id": 10, "type": "portal A entry", "properties": [{ "name": "terrain", "type": "string", "value": "portal-a-entry" }] },
+    { "id": 11, "type": "portal A exit", "properties": [{ "name": "terrain", "type": "string", "value": "portal-a-exit" }] },
+    { "id": 12, "type": "portal B entry", "properties": [{ "name": "terrain", "type": "string", "value": "portal-b-entry" }] },
+    { "id": 13, "type": "portal B exit", "properties": [{ "name": "terrain", "type": "string", "value": "portal-b-exit" }] }
   ]
 }

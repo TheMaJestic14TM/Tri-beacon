@@ -2,7 +2,6 @@
 #include "Pathfinder.h"
 #include <algorithm>
 #include <cmath>
-#include <iostream>
 
 #ifndef TRI_BEACON_LEVEL_DIR
 #define TRI_BEACON_LEVEL_DIR "levels"
@@ -32,24 +31,36 @@ Beacon MakeBeacon(int type, CellPos cell) {
     return beacon;
 }
 
+// Green beacons cost more because they guide the route
+int BeaconCost(int type) {
+    return type == GreenBeaconType ? 2 : 1;
+}
+
 // Used for clicks on the side panel buttons
 bool IsInsideRectangle(Vector2 point, int x, int y, int width, int height) {
     return point.x >= x && point.x < x + width &&
         point.y >= y && point.y < y + height;
 }
+
+// A cell only counts as reached when the minion gets to its center
+bool IsAtCellCenter(Vector2 position, CellPos cell) {
+    float centerX = cell.x + 0.5f;
+    float centerY = cell.y + 0.5f;
+    return abs(position.x - centerX) < 0.02f && abs(position.y - centerY) < 0.02f;
+}
 }
 
 // ==================== GAME SETUP ====================
 Game::Game() {
-    vector<LevelDefinition> levels = LoadLevelCatalog(TRI_BEACON_LEVEL_DIR);
+    levelCatalog_ = LoadLevelCatalog(TRI_BEACON_LEVEL_DIR);
 
-    if (levels.empty()) {
+    if (levelCatalog_.empty()) {
         running_ = false;
         notice_.message = "No valid level found";
         return;
     }
 
-    level_ = make_unique<Level>(levels[0]);
+    level_ = make_unique<Level>(levelCatalog_[currentLevelIndex_]);
     Reset();
 }
 
@@ -65,18 +76,31 @@ void Game::Reset() {
     stats_ = {};
     notice_ = {};
     selectedBeaconType_ = GreenBeaconType;
-    beaconsUsedForScore_ = 0;
+    runBeaconCost_ = 0;
     spawnMinions_ = false;
     started_ = false;
     paused_ = false;
     running_ = true;
     won_ = false;
+    bridgeWarningShown_ = false;
 }
 
 // Show a quick note when the player needs one
 void Game::SetNotice(const string& message) {
     notice_.message = message;
     notice_.timeLeft = 3.0f;
+}
+
+// Switch maps with the temporary level navigation keys
+void Game::ChangeLevel(int direction) {
+    if (levelCatalog_.size() < 2) {
+        return;
+    }
+
+    int levelCount = static_cast<int>(levelCatalog_.size());
+    currentLevelIndex_ = (currentLevelIndex_ + direction + levelCount) % levelCount;
+    level_ = make_unique<Level>(levelCatalog_[currentLevelIndex_]);
+    Reset();
 }
 
 // ==================== BEACON INFO ====================
@@ -89,18 +113,6 @@ int Game::BeaconCount(int type) const {
         }
     }
     return count;
-}
-
-// Read this map's limit for the selected beacon color
-int Game::BeaconLimit(int type) const {
-    if (!level_) {
-        return 0;
-    }
-
-    const LevelDefinition& rules = level_->Definition();
-    if (type == GreenBeaconType) return rules.greenBeaconLimit;
-    if (type == BlueBeaconType) return rules.blueBeaconLimit;
-    return rules.redBeaconLimit;
 }
 
 // Cargo stations are placed in the Tiled map
@@ -149,7 +161,11 @@ void Game::StartRun() {
 
     started_ = true;
     spawnMinions_ = true;
-    beaconsUsedForScore_ = static_cast<int>(beacons_.size());
+    // Only the beacons still on the map count from setup
+    runBeaconCost_ = 0;
+    for (const Beacon& beacon : beacons_) {
+        runBeaconCost_ += BeaconCost(beacon.type);
+    }
     SetNotice("Run started");
 }
 
@@ -164,7 +180,7 @@ void Game::GiveUp() {
 }
 
 // ==================== CARGO STATIONS ====================
-// Minions only notice a station when they enter its 3x3 area
+// Minions only notice a station when they enter its 5x5 area
 int Game::FindStationInRange(const Minion& minion) const {
     int bestIndex = -1;
     int bestDistance = GridWidth + GridHeight;
@@ -249,13 +265,46 @@ void Game::UpdateMinion(Minion& minion, float deltaTime) {
         return;
     }
 
-    // Cargo only becomes a target when a minion gets close
+    // Reaching a green waypoint counts even when it is on a teleporter
+    if (minion.hasGreenWaypoint && minion.cell == minion.greenWaypoint &&
+        IsAtCellCenter(minion.position, minion.greenWaypoint)) {
+        minion.visitedGreenBeacons.push_back(minion.greenWaypoint);
+        minion.hasGreenWaypoint = false;
+    }
+
+    // Nearby cargo keeps priority when a minion reaches a portal
     if (minion.stationTarget < 0) {
         int stationIndex = FindStationInRange(minion);
         if (stationIndex >= 0) {
             minion.stationTarget = stationIndex;
             minion.hasGreenWaypoint = false;
         }
+    }
+
+    CellPos portalExit = level_->PortalExit(minion.cell);
+    bool isPortalEntrance = level_->IsInside(portalExit.x, portalExit.y);
+
+    if (isPortalEntrance && minion.stationTarget < 0) {
+        Vector2 padCenter = {minion.cell.x + 0.5f, minion.cell.y + 0.5f};
+        float moveX = padCenter.x - minion.position.x;
+        float moveY = padCenter.y - minion.position.y;
+        float distance = sqrt(moveX * moveX + moveY * moveY);
+        float moveDistance = 2.6f * deltaTime;
+
+        if (distance > moveDistance) {
+            minion.position.x += moveX / distance * moveDistance;
+            minion.position.y += moveY / distance * moveDistance;
+            return;
+        }
+
+        if (minion.hasGreenWaypoint && minion.greenWaypoint == minion.cell) {
+            minion.visitedGreenBeacons.push_back(minion.greenWaypoint);
+            minion.hasGreenWaypoint = false;
+        }
+
+        minion.cell = portalExit;
+        minion.position = {portalExit.x + 0.5f, portalExit.y + 0.5f};
+        return;
     }
 
     CellPos target = level_->Start();
@@ -265,7 +314,7 @@ void Game::UpdateMinion(Minion& minion, float deltaTime) {
         CellPos station = stations[minion.stationTarget];
         target = station;
 
-        if (minion.cell == station) {
+        if (minion.cell == station && IsAtCellCenter(minion.position, station)) {
             minion.stationsVisited.push_back(minion.stationTarget);
             minion.stationTarget = -1;
             minion.loadsCarried++;
@@ -277,11 +326,6 @@ void Game::UpdateMinion(Minion& minion, float deltaTime) {
         target = level_->Start();
     } else if (minion.stationTarget < 0) {
         // Green beacons guide the next part of the trip
-        if (minion.hasGreenWaypoint && minion.cell == minion.greenWaypoint) {
-            minion.visitedGreenBeacons.push_back(minion.greenWaypoint);
-            minion.hasGreenWaypoint = false;
-        }
-
         if (!minion.hasGreenWaypoint) {
             int greenIndex = FindNextGreenWaypoint(minion.cell, minion.visitedGreenBeacons);
 
@@ -299,12 +343,15 @@ void Game::UpdateMinion(Minion& minion, float deltaTime) {
 
     // Bring the cargo home when the minion reaches the start
     if (minion.stationTarget < 0 && !minion.hasGreenWaypoint &&
-        target == level_->Start() && minion.cell == level_->Start()) {
+        target == level_->Start() && minion.cell == level_->Start() &&
+        IsAtCellCenter(minion.position, level_->Start())) {
         if (minion.loadsCarried > 0) {
             stats_.loadsReturned += minion.loadsCarried;
         }
         
-        spawnMinions_ = false;
+        if (VisitedEveryStation(minion)) {
+            spawnMinions_ = false;
+        }
         stats_.returnedHome++;
         minion.loadsCarried = 0;
         minion.alive = false;
@@ -313,10 +360,26 @@ void Game::UpdateMinion(Minion& minion, float deltaTime) {
 
     vector<CellPos> route = Pathfinder::FindPath(*level_, minion.cell, target, beacons_);
     if (route.size() < 2) {
+        // Finish the last part of the step if the cell changed at its edge
+        if (minion.cell == target && !IsAtCellCenter(minion.position, target)) {
+            Vector2 center = {target.x + 0.5f, target.y + 0.5f};
+            float moveX = center.x - minion.position.x;
+            float moveY = center.y - minion.position.y;
+            float distance = sqrt(moveX * moveX + moveY * moveY);
+            float moveDistance = 2.6f * deltaTime;
+
+            if (distance <= moveDistance) {
+                minion.position = center;
+            } else {
+                minion.position.x += moveX / distance * moveDistance;
+                minion.position.y += moveY / distance * moveDistance;
+            }
+        }
         return;
     }
 
     CellPos nextCell = route[1];
+
     float speed = 2.6f;
     if (level_->At(nextCell.x, nextCell.y) == Tile::Water) {
         speed = 1.7f;
@@ -331,6 +394,7 @@ void Game::UpdateMinion(Minion& minion, float deltaTime) {
     if (distance <= moveDistance) {
         minion.position = targetPosition;
         minion.cell = nextCell;
+
         return;
     }
 
@@ -346,11 +410,13 @@ void Game::FinishRun() {
         : 0.0f;
 
     // Use the run time, survival rate and beacons for the final score
-    float beaconCount = static_cast<float>(max(1, beaconsUsedForScore_));
-    // Original score was: BaseScore * stats_.survivalRate / (stats_.scoreTime * beaconCount);
-    std::cout <<  stats_.loadsReturned << " " << stats_.elapsedTime << " " << beaconCount << std::endl;
-    float score = 1000 * stats_.loadsReturned / (stats_.elapsedTime * beaconCount);
-    std::cout << score << std::endl;
+    float time = max(0.001f, stats_.elapsedTime);
+    float score = 1000.0f * stats_.loadsReturned / time;
+
+    // More run beacon cost lowers the score without crushing it to zero
+    float beaconMultiplier = BeaconCostScale / (BeaconCostScale + runBeaconCost_);
+    score *= beaconMultiplier;
+
     if (stats_.survivalRate >= 0.75f) {
         score *= 1.75f;
     }
@@ -368,10 +434,20 @@ void Game::Update(float deltaTime) {
         return;
     }
     
-    stats_.scoreTime += deltaTime;
+    if (level_->HasBridgeEvent()) {
+        float remaining = level_->BridgeCollapseRemaining();
+        if (!bridgeWarningShown_ && remaining > 0.0f &&
+            remaining <= level_->Definition().bridgeWarningSeconds) {
+            SetNotice("Bridge collapsing soon · Find another route");
+            bridgeWarningShown_ = true;
+        }
 
-    if (spawnMinions_)
-    {
+        if (level_->Update(deltaTime)) {
+            SetNotice("Bridge collapsed · Routes have changed");
+        }
+    }
+
+    if (spawnMinions_) {
         UpdateSpawner(deltaTime);
     }
 
@@ -389,15 +465,14 @@ void Game::Update(float deltaTime) {
         }
     }
     
-    if (minions_.empty() and !spawnMinions_)
-    {
+    if (minions_.empty() && !spawnMinions_) {
         FinishRun();
     }
     
 }
 
 // ==================== BEACON PLACEMENT ====================
-// Check the map and level limits before adding a beacon
+// Check the map before adding a beacon
 void Game::PlaceBeacon(CellPos cell) {
     if (!level_ || !level_->IsPathable(cell.x, cell.y)) {
         return;
@@ -414,14 +489,10 @@ void Game::PlaceBeacon(CellPos cell) {
         }
     }
 
-    if (BeaconCount(selectedBeaconType_) >= BeaconLimit(selectedBeaconType_)) {
-        SetNotice("No more of that beacon type for this level");
-        return;
-    }
-
     beacons_.push_back(MakeBeacon(selectedBeaconType_, cell));
     if (started_) {
-        beaconsUsedForScore_ = max(beaconsUsedForScore_, static_cast<int>(beacons_.size()));
+        // Run placements add cost and removing them will not refund it
+        runBeaconCost_ += BeaconCost(selectedBeaconType_);
     }
 
     if (selectedBeaconType_ == GreenBeaconType) {
@@ -465,6 +536,16 @@ void Game::HandlePanelClick(Vector2 mouse) {
 // ==================== PLAYER INPUT ====================
 // Read keys and mouse clicks for this frame
 void Game::HandleInput() {
+    if (IsKeyPressed(KEY_PAGE_UP)) {
+        ChangeLevel(-1);
+        return;
+    }
+
+    if (IsKeyPressed(KEY_PAGE_DOWN)) {
+        ChangeLevel(1);
+        return;
+    }
+
     if (IsKeyPressed(KEY_R)) {
         Reset();
         return;

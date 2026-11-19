@@ -34,16 +34,20 @@ Tile TileFromName(const string& name) {
     if (name == "water") return Tile::Water;
     if (name == "cargo") return Tile::CargoStation;
     if (name == "hazard") return Tile::Hazard;
+    if (name == "bridge") return Tile::Bridge;
+    if (name == "portal-a-entry") return Tile::PortalAEntry;
+    if (name == "portal-a-exit") return Tile::PortalAExit;
+    if (name == "portal-b-entry") return Tile::PortalBEntry;
+    if (name == "portal-b-exit") return Tile::PortalBExit;
     return Tile::Floor;
 }
 
-// Read an integer setting or keep its default
-int ReadIntProperty(const Json& map, const string& name, int defaultValue) {
+float ReadFloatProperty(const Json& map, const string& name, float defaultValue) {
     Json value = FindProperty(map, name);
-    if (!value.is_number_integer()) {
+    if (!value.is_number()) {
         return defaultValue;
     }
-    return value.get<int>();
+    return value.get<float>();
 }
 
 // The start tile has to be inside the map and safe
@@ -89,9 +93,8 @@ bool LoadDefinition(const filesystem::path& file, LevelDefinition& level) {
             level.name = file.stem().string();
         }
 
-        level.greenBeaconLimit = ReadIntProperty(map, "greenBeaconLimit", level.greenBeaconLimit);
-        level.blueBeaconLimit = ReadIntProperty(map, "blueBeaconLimit", level.blueBeaconLimit);
-        level.redBeaconLimit = ReadIntProperty(map, "redBeaconLimit", level.redBeaconLimit);
+        level.bridgeCollapseSeconds = ReadFloatProperty(map, "bridgeCollapseSeconds", 0.0f);
+        level.bridgeWarningSeconds = ReadFloatProperty(map, "bridgeWarningSeconds", 5.0f);
 
         if (!map.contains("tilesets") || map["tilesets"].empty()) {
             return false;
@@ -187,21 +190,31 @@ bool LoadDefinition(const filesystem::path& file, LevelDefinition& level) {
             return false;
         }
 
-        // A playable map needs cargo and valid beacon limits
+        // A playable map needs cargo and matching special tiles
         int stationCount = 0;
+        int bridgeCount = 0;
+        int portalAEntryCount = 0;
+        int portalAExitCount = 0;
+        int portalBEntryCount = 0;
+        int portalBExitCount = 0;
         for (const auto& row : level.terrain) {
             for (Tile tile : row) {
                 if (tile == Tile::CargoStation) {
                     stationCount++;
                 }
+                if (tile == Tile::Bridge) bridgeCount++;
+                if (tile == Tile::PortalAEntry) portalAEntryCount++;
+                if (tile == Tile::PortalAExit) portalAExitCount++;
+                if (tile == Tile::PortalBEntry) portalBEntryCount++;
+                if (tile == Tile::PortalBExit) portalBExitCount++;
             }
         }
 
-        bool validBeaconLimits = level.greenBeaconLimit >= 1;
-        validBeaconLimits = validBeaconLimits && level.blueBeaconLimit >= 0;
-        validBeaconLimits = validBeaconLimits && level.redBeaconLimit >= 0;
+        bool validSpecialTiles = portalAEntryCount == portalAExitCount;
+        validSpecialTiles = validSpecialTiles && portalBEntryCount == portalBExitCount;
+        validSpecialTiles = validSpecialTiles && (level.bridgeCollapseSeconds <= 0.0f || bridgeCount > 0);
 
-        return stationCount > 0 && validBeaconLimits;
+        return stationCount > 0 && validSpecialTiles;
     } catch (const exception&) {
         return false;
     }
@@ -247,15 +260,77 @@ Level::Level(LevelDefinition definition)
 void Level::Reset() {
     tiles_ = definition_.terrain;
     cargoStations_.clear();
+    bridgeCells_.clear();
+    portalLinks_.clear();
+    eventTime_ = 0.0f;
+    bridgeCollapseEffectTime_ = 0.0f;
+    bridgeCollapsed_ = false;
+
+    std::array<std::vector<CellPos>, 2> portalEntries;
+    std::array<std::vector<CellPos>, 2> portalExits;
 
     for (int y = 0; y < GridHeight; y++) {
         for (int x = 0; x < GridWidth; x++) {
-            if (tiles_[y][x] == Tile::CargoStation) {
-                cargoStations_.push_back({x, y});
-            }
+            CellPos cell{x, y};
+            Tile tile = tiles_[y][x];
+
+            if (tile == Tile::CargoStation) cargoStations_.push_back(cell);
+            if (tile == Tile::Bridge) bridgeCells_.push_back(cell);
+            if (tile == Tile::PortalAEntry) portalEntries[0].push_back(cell);
+            if (tile == Tile::PortalAExit) portalExits[0].push_back(cell);
+            if (tile == Tile::PortalBEntry) portalEntries[1].push_back(cell);
+            if (tile == Tile::PortalBExit) portalExits[1].push_back(cell);
         }
     }
 
+    // Pair each entrance with the matching exit type
+    for (int direction = 0; direction < 2; direction++) {
+        for (int i = 0; i < static_cast<int>(portalEntries[direction].size()); i++) {
+            portalLinks_.push_back({portalEntries[direction][i], portalExits[direction][i]});
+        }
+    }
+}
+
+// Count run time and collapse every marked bridge when its timer ends
+bool Level::Update(float deltaTime) {
+    if (bridgeCollapsed_) {
+        bridgeCollapseEffectTime_ = max(0.0f, bridgeCollapseEffectTime_ - deltaTime);
+        return false;
+    }
+
+    if (!HasBridgeEvent()) {
+        return false;
+    }
+
+    eventTime_ += deltaTime;
+    if (eventTime_ < definition_.bridgeCollapseSeconds) {
+        return false;
+    }
+
+    for (CellPos cell : bridgeCells_) {
+        tiles_[cell.y][cell.x] = Tile::Hazard;
+    }
+
+    bridgeCollapsed_ = true;
+    bridgeCollapseEffectTime_ = 1.0f;
+    return true;
+}
+
+float Level::BridgeCollapseRemaining() const {
+    if (!HasBridgeEvent() || bridgeCollapsed_) {
+        return 0.0f;
+    }
+    return max(0.0f, definition_.bridgeCollapseSeconds - eventTime_);
+}
+
+// Return the destination for a one-way portal entrance
+CellPos Level::PortalExit(CellPos cell) const {
+    for (const PortalLink& link : portalLinks_) {
+        if (link.first == cell) {
+            return link.second;
+        }
+    }
+    return {-1, -1};
 }
 
 // Check whether a grid position is inside the map
