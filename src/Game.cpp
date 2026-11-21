@@ -78,10 +78,14 @@ void Game::Reset() {
     selectedBeaconType_ = GreenBeaconType;
     runBeaconCost_ = 0;
     spawnMinions_ = false;
+    scoringPhase_ = false;
     started_ = false;
     paused_ = false;
     running_ = true;
     won_ = false;
+    scoringPhaseTimeLeft_ = 0.0f;
+    scoringPhaseSpawned_ = 0;
+    scoringPhaseReturned_ = 0;
     bridgeWarningShown_ = false;
 }
 
@@ -161,6 +165,10 @@ void Game::StartRun() {
 
     started_ = true;
     spawnMinions_ = true;
+    scoringPhase_ = false;
+    scoringPhaseTimeLeft_ = 0.0f;
+    scoringPhaseSpawned_ = 0;
+    scoringPhaseReturned_ = 0;
     // Only the beacons still on the map count from setup
     runBeaconCost_ = 0;
     for (const Beacon& beacon : beacons_) {
@@ -183,7 +191,7 @@ void Game::GiveUp() {
 // Minions only notice a station when they enter its 5x5 area
 int Game::FindStationInRange(const Minion& minion) const {
     int bestIndex = -1;
-    int bestDistance = GridWidth + GridHeight;
+    int bestRouteLength = GridWidth * GridHeight + 1;
     const vector<CellPos>& stations = level_->CargoStations();
     CellPos from = minion.cell;
 
@@ -198,9 +206,14 @@ int Game::FindStationInRange(const Minion& minion) const {
             continue;
         }
 
-        int distance = level_->Distance(from, stations[i]);
-        if (distance < bestDistance) {
-            bestDistance = distance;
+        vector<CellPos> route = Pathfinder::FindPath(*level_, from, stations[i], beacons_);
+        if (route.empty()) {
+            continue;
+        }
+
+        int routeLength = static_cast<int>(route.size());
+        if (routeLength < bestRouteLength) {
+            bestRouteLength = routeLength;
             bestIndex = i;
         }
     }
@@ -223,7 +236,7 @@ bool Game::VisitedEveryStation(const Minion& minion) const {
 // Find the nearest green beacon this minion has not visited yet
 int Game::FindNextGreenWaypoint(CellPos from, const vector<CellPos>& visited) const {
     int bestIndex = -1;
-    int bestDistance = 1000000;
+    int bestRouteLength = GridWidth * GridHeight + 1;
 
     for (int i = 0; i < static_cast<int>(beacons_.size()); i++) {
         if (beacons_[i].type != GreenBeaconType) {
@@ -242,9 +255,14 @@ int Game::FindNextGreenWaypoint(CellPos from, const vector<CellPos>& visited) co
             continue;
         }
 
-        int distance = level_->Distance(from, beacons_[i].cell);
-        if (distance < bestDistance) {
-            bestDistance = distance;
+        vector<CellPos> route = Pathfinder::FindPath(*level_, from, beacons_[i].cell, beacons_);
+        if (route.empty()) {
+            continue;
+        }
+
+        int routeLength = static_cast<int>(route.size());
+        if (routeLength < bestRouteLength) {
+            bestRouteLength = routeLength;
             bestIndex = i;
         }
     }
@@ -272,19 +290,18 @@ void Game::UpdateMinion(Minion& minion, float deltaTime) {
         minion.hasGreenWaypoint = false;
     }
 
-    // Nearby cargo keeps priority when a minion reaches a portal
+    // Cargo stays the minion's goal after a portal jump
     if (minion.stationTarget < 0) {
         int stationIndex = FindStationInRange(minion);
         if (stationIndex >= 0) {
             minion.stationTarget = stationIndex;
-            minion.hasGreenWaypoint = false;
         }
     }
 
     CellPos portalExit = level_->PortalExit(minion.cell);
     bool isPortalEntrance = level_->IsInside(portalExit.x, portalExit.y);
 
-    if (isPortalEntrance && minion.stationTarget < 0) {
+    if (isPortalEntrance) {
         Vector2 padCenter = {minion.cell.x + 0.5f, minion.cell.y + 0.5f};
         float moveX = padCenter.x - minion.position.x;
         float moveY = padCenter.y - minion.position.y;
@@ -324,6 +341,7 @@ void Game::UpdateMinion(Minion& minion, float deltaTime) {
     // After all stations, head back to the start
     if (minion.stationTarget < 0 && VisitedEveryStation(minion)) {
         target = level_->Start();
+        minion.hasGreenWaypoint = false;
     } else if (minion.stationTarget < 0) {
         // Green beacons guide the next part of the trip
         if (!minion.hasGreenWaypoint) {
@@ -345,13 +363,19 @@ void Game::UpdateMinion(Minion& minion, float deltaTime) {
     if (minion.stationTarget < 0 && !minion.hasGreenWaypoint &&
         target == level_->Start() && minion.cell == level_->Start() &&
         IsAtCellCenter(minion.position, level_->Start())) {
-        if (minion.loadsCarried > 0) {
-            stats_.loadsReturned += minion.loadsCarried;
-        }
-        
-        if (VisitedEveryStation(minion)) {
+        if (VisitedEveryStation(minion) && !scoringPhase_) {
+            scoringPhase_ = true;
             spawnMinions_ = false;
+            scoringPhaseTimeLeft_ = FinalScoringSeconds;
+            scoringPhaseSpawned_ = stats_.spawned - stats_.returnedHome - stats_.lost;
+            SetNotice("Full delivery · 5 seconds left");
         }
+
+        if (scoringPhase_) {
+            stats_.loadsReturned += minion.loadsCarried;
+            scoringPhaseReturned_++;
+        }
+
         stats_.returnedHome++;
         minion.loadsCarried = 0;
         minion.alive = false;
@@ -405,8 +429,8 @@ void Game::UpdateMinion(Minion& minion, float deltaTime) {
 // ==================== SCORE ====================
 // Finish the run and calculate the final score
 void Game::FinishRun() {
-    stats_.survivalRate = stats_.spawned > 0
-        ? static_cast<float>(stats_.returnedHome) / stats_.spawned
+    stats_.survivalRate = scoringPhaseSpawned_ > 0
+        ? static_cast<float>(scoringPhaseReturned_) / scoringPhaseSpawned_
         : 0.0f;
 
     // Use the run time, survival rate and beacons for the final score
@@ -451,6 +475,10 @@ void Game::Update(float deltaTime) {
         UpdateSpawner(deltaTime);
     }
 
+    if (scoringPhase_) {
+        scoringPhaseTimeLeft_ -= deltaTime;
+    }
+
     notice_.timeLeft = max(0.0f, notice_.timeLeft - deltaTime);
     stats_.elapsedTime += deltaTime;
 
@@ -465,7 +493,20 @@ void Game::Update(float deltaTime) {
         }
     }
     
-    if (minions_.empty() && !spawnMinions_) {
+    if (scoringPhase_ && scoringPhaseTimeLeft_ <= 0.0f) {
+        for (Minion& minion : minions_) {
+            if (minion.alive) {
+                minion.alive = false;
+                minion.loadsCarried = 0;
+                stats_.lost++;
+            }
+        }
+        minions_.clear();
+        FinishRun();
+        return;
+    }
+
+    if (minions_.empty() && !spawnMinions_ && !scoringPhase_) {
         FinishRun();
     }
     
@@ -498,7 +539,6 @@ void Game::PlaceBeacon(CellPos cell) {
     if (selectedBeaconType_ == GreenBeaconType) {
         for (Minion& minion : minions_) {
             minion.hasGreenWaypoint = false;
-            minion.visitedGreenBeacons.clear();
         }
     }
 }
@@ -515,7 +555,6 @@ void Game::RemoveBeacon(CellPos cell) {
             if (removedType == GreenBeaconType) {
                 for (Minion& minion : minions_) {
                     minion.hasGreenWaypoint = false;
-                    minion.visitedGreenBeacons.clear();
                 }
             }
             return;

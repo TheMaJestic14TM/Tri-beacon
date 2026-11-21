@@ -32,6 +32,8 @@ public:
     bool HasStarted() const { return started_; }
     bool IsRunning() const { return running_; }
     bool HasWon() const { return won_; }
+    bool IsInScoringPhase() const { return scoringPhase_; }
+    float ScoringPhaseTimeLeft() const { return scoringPhaseTimeLeft_; }
 
 private:
     // Small helpers for the current run
@@ -62,9 +64,13 @@ private:
     bool running_ = true;
     bool started_ = false;
     bool spawnMinions_ = false;
+    bool scoringPhase_ = false;
     bool paused_ = false;
     bool won_ = false;
     float spawnTimer_ = 0.0f;
+    float scoringPhaseTimeLeft_ = 0.0f;
+    int scoringPhaseSpawned_ = 0;
+    int scoringPhaseReturned_ = 0;
     bool bridgeWarningShown_ = false;
 };
 }

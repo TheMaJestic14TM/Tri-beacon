@@ -136,6 +136,12 @@ void DrawHeader(const Game& game) {
     DrawText("TIME", 705, 17, 11, Muted);
     DrawText(TextFormat("%02d:%02d", minutes, seconds), 705, 36, 19, Text);
 
+    if (game.IsInScoringPhase() && !game.HasWon()) {
+        DrawText("FINAL", 810, 17, 11, Muted);
+        DrawText(TextFormat("%d", static_cast<int>(ceil(game.ScoringPhaseTimeLeft()))),
+            810, 36, 19, Color{255, 214, 106, 255});
+    }
+
     if (game.HasWon()) {
         DrawText("RATE", 810, 17, 11, Muted);
         DrawText(TextFormat("%d%%", static_cast<int>(stats.survivalRate * 100.0f)), 810, 36, 19, Green);
