@@ -23,6 +23,7 @@ constexpr int CargoAreaRadius = 2;
 constexpr int BeaconAreaRadius = 2;
 // At this cost, the beacon part of the score is cut in half
 constexpr float BeaconCostScale = 25.0f;
+constexpr float FinalScoringSeconds = 5.0f;
 constexpr int GreenBeaconType = 0;
 constexpr int BlueBeaconType = 1;
 constexpr int RedBeaconType = 2;
