@@ -2,6 +2,7 @@
 #include "Pathfinder.h"
 #include <algorithm>
 #include <cmath>
+#include <fstream>
 
 #ifndef TRI_BEACON_LEVEL_DIR
 #define TRI_BEACON_LEVEL_DIR "levels"
@@ -60,6 +61,7 @@ Game::Game() {
         return;
     }
 
+    LoadBestScores();
     level_ = make_unique<Level>(levelCatalog_[currentLevelIndex_]);
     Reset();
 }
@@ -86,6 +88,7 @@ void Game::Reset() {
     scoringPhaseTimeLeft_ = 0.0f;
     scoringPhaseSpawned_ = 0;
     scoringPhaseReturned_ = 0;
+    spawnTimer_ = 0.0f;
     bridgeWarningShown_ = false;
 }
 
@@ -95,16 +98,80 @@ void Game::SetNotice(const string& message) {
     notice_.timeLeft = 3.0f;
 }
 
-// Switch maps with the temporary level navigation keys
-void Game::ChangeLevel(int direction) {
+// Move through the level list in the main menu
+void Game::ChangeMenuLevel(int direction) {
     if (levelCatalog_.size() < 2) {
         return;
     }
 
     int levelCount = static_cast<int>(levelCatalog_.size());
     currentLevelIndex_ = (currentLevelIndex_ + direction + levelCount) % levelCount;
+}
+
+// Load the selected map and open its setup screen
+void Game::StartSelectedLevel() {
+    if (levelCatalog_.empty()) {
+        return;
+    }
+
     level_ = make_unique<Level>(levelCatalog_[currentLevelIndex_]);
     Reset();
+    menuOpen_ = false;
+}
+
+// Clear the current run and return to the level menu
+void Game::ReturnToMenu() {
+    if (level_) {
+        Reset();
+    }
+    menuOpen_ = true;
+}
+
+// Load each level's saved score from the local game folder
+void Game::LoadBestScores() {
+    bestScores_.assign(levelCatalog_.size(), 0);
+
+    ifstream scoreFile("tri_beacon_scores.txt");
+    string line;
+    while (getline(scoreFile, line)) {
+        size_t tab = line.find('\t');
+        if (tab == string::npos) {
+            continue;
+        }
+
+        string levelName = line.substr(0, tab);
+        int score = 0;
+        try {
+            score = stoi(line.substr(tab + 1));
+        } catch (const exception&) {
+            continue;
+        }
+
+        for (int i = 0; i < static_cast<int>(levelCatalog_.size()); i++) {
+            if (levelCatalog_[i].name == levelName) {
+                bestScores_[i] = score;
+            }
+        }
+    }
+}
+
+// Save the scores so they are still there next time
+void Game::SaveBestScores() const {
+    ofstream scoreFile("tri_beacon_scores.txt");
+    if (!scoreFile) {
+        return;
+    }
+
+    for (int i = 0; i < static_cast<int>(levelCatalog_.size()); i++) {
+        scoreFile << levelCatalog_[i].name << '\t' << bestScores_[i] << '\n';
+    }
+}
+
+int Game::BestScore() const {
+    if (currentLevelIndex_ < 0 || currentLevelIndex_ >= static_cast<int>(bestScores_.size())) {
+        return 0;
+    }
+    return bestScores_[currentLevelIndex_];
 }
 
 // ==================== BEACON INFO ====================
@@ -147,8 +214,8 @@ void Game::SpawnMinion() {
 
 void Game::UpdateSpawner(float deltaTime) {
     spawnTimer_ += deltaTime;
-    while (spawnTimer_ >= 0.25f) {
-        spawnTimer_ -= 0.25f;
+    while (spawnTimer_ >= 1.0f) {
+        spawnTimer_ -= 1.0f;
         SpawnMinion();
     }
 }
@@ -446,6 +513,11 @@ void Game::FinishRun() {
     }
 
     stats_.score = static_cast<int>(score);
+    if (currentLevelIndex_ < static_cast<int>(bestScores_.size()) &&
+        stats_.score > bestScores_[currentLevelIndex_]) {
+        bestScores_[currentLevelIndex_] = stats_.score;
+        SaveBestScores();
+    }
     won_ = true;
     running_ = false;
     SetNotice("Level complete · Press R to try again");
@@ -569,32 +641,45 @@ void Game::HandlePanelClick(Vector2 mouse) {
         StartRun();
     } else if (IsInsideRectangle(mouse, ControlButtonX, GiveUpButtonY, ControlButtonWidth, ControlButtonHeight)) {
         GiveUp();
+    } else if (IsInsideRectangle(mouse, ControlButtonX, MainMenuButtonY, ControlButtonWidth, ControlButtonHeight)) {
+        ReturnToMenu();
     }
 }
 
 // ==================== PLAYER INPUT ====================
 // Read keys and mouse clicks for this frame
 void Game::HandleInput() {
-    if (IsKeyPressed(KEY_PAGE_UP)) {
-        ChangeLevel(-1);
+    if (IsKeyPressed(KEY_F11)) {
+        // Use the display the window is currently on
+        SetWindowMonitor(GetCurrentMonitor());
+        ToggleFullscreen();
+    }
+
+    if (menuOpen_) {
+        if (IsKeyPressed(KEY_LEFT)) ChangeMenuLevel(-1);
+        if (IsKeyPressed(KEY_RIGHT)) ChangeMenuLevel(1);
+        if (IsKeyPressed(KEY_ENTER)) StartSelectedLevel();
+
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            Vector2 mouse = ScreenToGamePosition(GetMousePosition());
+            if (IsInsideRectangle(mouse, MenuPlayX, MenuPlayY, MenuPlayWidth, MenuPlayHeight)) {
+                StartSelectedLevel();
+            } else if (IsInsideRectangle(mouse, MenuLeftArrowX, MenuArrowY, 48, 48)) {
+                ChangeMenuLevel(-1);
+            } else if (IsInsideRectangle(mouse, MenuRightArrowX, MenuArrowY, 48, 48)) {
+                ChangeMenuLevel(1);
+            }
+        }
         return;
     }
 
-    if (IsKeyPressed(KEY_PAGE_DOWN)) {
-        ChangeLevel(1);
+    if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_M)) {
+        ReturnToMenu();
         return;
     }
 
     if (IsKeyPressed(KEY_R)) {
         Reset();
-        return;
-    }
-
-    if (IsKeyPressed(KEY_F11)) {
-        ToggleFullscreen();
-    }
-
-    if (!running_) {
         return;
     }
 
@@ -610,14 +695,14 @@ void Game::HandleInput() {
         paused_ = !paused_;
     }
 
-    if (IsKeyPressed(KEY_ESCAPE)) {
-        GiveUp();
-    }
-
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         Vector2 mouse = ScreenToGamePosition(GetMousePosition());
         if (IsInsideRectangle(mouse, ControlPanelX, BoardTop, ControlPanelWidth, GridHeight * CellSize)) {
             HandlePanelClick(mouse);
+            return;
+        }
+
+        if (!running_) {
             return;
         }
 
@@ -635,6 +720,9 @@ void Game::HandleInput() {
     }
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+        if (!running_) {
+            return;
+        }
         Vector2 mouse = ScreenToGamePosition(GetMousePosition());
         int boardRight = BoardLeft + GridWidth * CellSize;
         int boardBottom = BoardTop + GridHeight * CellSize;

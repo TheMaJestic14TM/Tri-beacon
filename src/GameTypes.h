@@ -33,7 +33,20 @@ constexpr int ControlButtonX = ControlPanelX + 10;
 constexpr int ControlButtonWidth = ControlPanelWidth - 20;
 constexpr int StartButtonY = BoardTop + 490;
 constexpr int GiveUpButtonY = BoardTop + 535;
+constexpr int MainMenuButtonY = BoardTop + 580;
 constexpr int ControlButtonHeight = 34;
+constexpr int MenuCardWidth = 780;
+constexpr int MenuCardHeight = 560;
+constexpr int MenuCardX = (WindowWidth - MenuCardWidth) / 2;
+constexpr int MenuCardY = (WindowHeight - MenuCardHeight) / 2;
+constexpr int MenuPlayWidth = 260;
+constexpr int MenuPlayHeight = 54;
+constexpr int MenuPlayX = (WindowWidth - MenuPlayWidth) / 2;
+constexpr int MenuPlayY = MenuCardY + 140;
+constexpr int MenuArrowY = MenuCardY + 280;
+constexpr int MenuLeftArrowX = MenuCardX + 90;
+constexpr int MenuRightArrowX = MenuCardX + MenuCardWidth - 130;
+constexpr int MenuBestScoreY = MenuCardY + 365;
 
 // These helpers keep the game view centered and clicks lined up
 inline float GameViewScale() {

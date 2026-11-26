@@ -34,11 +34,23 @@ public:
     bool HasWon() const { return won_; }
     bool IsInScoringPhase() const { return scoringPhase_; }
     float ScoringPhaseTimeLeft() const { return scoringPhaseTimeLeft_; }
+    bool IsInMainMenu() const { return menuOpen_; }
+    int SelectedLevelIndex() const { return currentLevelIndex_; }
+    int LevelCount() const { return static_cast<int>(levelCatalog_.size()); }
+    const std::string& SelectedLevelName() const {
+        static const std::string noLevel = "No levels found";
+        return levelCatalog_.empty() ? noLevel : levelCatalog_[currentLevelIndex_].name;
+    }
+    int BestScore() const;
 
 private:
     // Small helpers for the current run
     void SetNotice(const std::string& message);
-    void ChangeLevel(int direction);
+    void StartSelectedLevel();
+    void ReturnToMenu();
+    void ChangeMenuLevel(int direction);
+    void LoadBestScores();
+    void SaveBestScores() const;
     int FindStationInRange(const Minion& minion) const;
     bool HasVisitedStation(const Minion& minion, int stationIndex) const;
     bool VisitedEveryStation(const Minion& minion) const;
@@ -54,6 +66,7 @@ private:
     // Current map and things placed or moving on it
     std::vector<LevelDefinition> levelCatalog_;
     int currentLevelIndex_ = 0;
+    std::vector<int> bestScores_;
     std::unique_ptr<Level> level_;
     std::vector<Minion> minions_;
     std::vector<Beacon> beacons_;
@@ -62,6 +75,7 @@ private:
     int selectedBeaconType_ = GreenBeaconType;
     int runBeaconCost_ = 0;
     bool running_ = true;
+    bool menuOpen_ = true;
     bool started_ = false;
     bool spawnMinions_ = false;
     bool scoringPhase_ = false;
