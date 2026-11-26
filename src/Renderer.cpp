@@ -118,8 +118,7 @@ void DrawTile(Tile tile, int gridX, int gridY, double time) {
 // Show the current objective and run stats
 void DrawHeader(const Game& game) {
     DrawRectangle(0, 0, WindowWidth, BoardTop, Panel);
-    DrawText("TRI / BEACON", 32, 19, 25, Text);
-    DrawText("Guide the minions and bring the cargo home", 34, 51, 14, Muted);
+    DrawText("TRI BEACON", 32, 25, 25, Text);
 
     const GameStats& stats = game.Stats();
     DrawText("LOADS HOME", 370, 17, 11, Muted);
@@ -241,6 +240,75 @@ void DrawButton(int y, const char* label, bool enabled, Color color) {
     DrawText(label, textX, y + 11, 14, labelColor);
 }
 
+// Draw one button on the main menu
+void DrawMenuButton(int x, int y, int width, int height, const char* label, Color color) {
+    DrawRectangle(x, y, width, height, Color{40, 55, 72, 255});
+    DrawRectangleLines(x, y, width, height, color);
+    int textX = x + (width - MeasureText(label, 18)) / 2;
+    DrawText(label, textX, y + (height - 18) / 2, 18, color);
+}
+
+// Show the game title and let the player pick a level
+void DrawMainMenu(const Game& game) {
+    for (int x = 0; x < WindowWidth; x += CellSize) {
+        DrawLine(x, 0, x, WindowHeight, Color{23, 31, 45, 100});
+    }
+    for (int y = 0; y < WindowHeight; y += CellSize) {
+        DrawLine(0, y, WindowWidth, y, Color{23, 31, 45, 100});
+    }
+
+    DrawRectangle(MenuCardX, MenuCardY, MenuCardWidth, MenuCardHeight, Panel);
+    DrawRectangleLines(MenuCardX, MenuCardY, MenuCardWidth, MenuCardHeight, Color{52, 68, 88, 255});
+
+    const char* title = "TRI BEACON";
+    DrawText(title, (WindowWidth - MeasureText(title, 38)) / 2, MenuCardY + 42, 38, Text);
+
+    const char* subtitle = "PLAN THE ROUTE. BRING THE CARGO HOME.";
+    DrawText(subtitle, (WindowWidth - MeasureText(subtitle, 15)) / 2, MenuCardY + 95, 15, Muted);
+
+    DrawMenuButton(MenuPlayX, MenuPlayY, MenuPlayWidth, MenuPlayHeight, "PLAY", Green);
+
+    DrawText("SELECT LEVEL", (WindowWidth - MeasureText("SELECT LEVEL", 14)) / 2,
+        MenuCardY + 235, 14, Muted);
+
+    DrawRectangle(MenuLeftArrowX, MenuArrowY, 48, 48, Color{40, 55, 72, 255});
+    DrawRectangleLines(MenuLeftArrowX, MenuArrowY, 48, 48, Color{77, 96, 116, 255});
+    DrawTriangle({static_cast<float>(MenuLeftArrowX + 30), static_cast<float>(MenuArrowY + 9)},
+        {static_cast<float>(MenuLeftArrowX + 15), static_cast<float>(MenuArrowY + 24)},
+        {static_cast<float>(MenuLeftArrowX + 30), static_cast<float>(MenuArrowY + 39)}, Green);
+
+    DrawRectangle(MenuRightArrowX, MenuArrowY, 48, 48, Color{40, 55, 72, 255});
+    DrawRectangleLines(MenuRightArrowX, MenuArrowY, 48, 48, Color{77, 96, 116, 255});
+    DrawTriangle({static_cast<float>(MenuRightArrowX + 16), static_cast<float>(MenuArrowY + 39)},
+        {static_cast<float>(MenuRightArrowX + 31), static_cast<float>(MenuArrowY + 24)},
+        {static_cast<float>(MenuRightArrowX + 16), static_cast<float>(MenuArrowY + 9)}, Green);
+
+    const char* levelName = game.SelectedLevelName().c_str();
+    int nameSize = 25;
+    DrawText(levelName, (WindowWidth - MeasureText(levelName, nameSize)) / 2,
+        MenuArrowY + 2, nameSize, Text);
+
+    const char* levelNumber = "NO LEVELS FOUND";
+    if (game.LevelCount() > 0 && game.SelectedLevelIndex() == 0) {
+        levelNumber = "TUTORIAL";
+    } else if (game.LevelCount() > 0) {
+        levelNumber = TextFormat("LEVEL %d OF %d", game.SelectedLevelIndex(), game.LevelCount() - 1);
+    }
+    DrawText(levelNumber, (WindowWidth - MeasureText(levelNumber, 12)) / 2,
+        MenuArrowY + 34, 12, Blue);
+
+    const char* bestScore = TextFormat("BEST SCORE  %d", game.BestScore());
+    DrawText(bestScore, (WindowWidth - MeasureText(bestScore, 16)) / 2,
+        MenuBestScoreY, 16, Color{255, 214, 106, 255});
+
+    const char* controls = "LEFT / RIGHT TO SELECT     ENTER TO PLAY";
+    DrawText(controls, (WindowWidth - MeasureText(controls, 12)) / 2,
+        MenuCardY + MenuCardHeight - 61, 12, Muted);
+    const char* fullscreen = "F11  FULLSCREEN";
+    DrawText(fullscreen, (WindowWidth - MeasureText(fullscreen, 12)) / 2,
+        MenuCardY + MenuCardHeight - 35, 12, Green);
+}
+
 // Show the objective, beacon guide and buttons
 void DrawControlPanel(const Game& game) {
     int x = ControlPanelX;
@@ -282,9 +350,6 @@ void DrawControlPanel(const Game& game) {
     line += 20;
     DrawText("Left click places   Right click removes", x + 14, line, 11, Muted);
     line += 20;
-    DrawText("Page Up / Down changes level", x + 14, line, 11, Muted);
-    line += 20;
-
     const Level* level = game.CurrentLevel();
     if (level && !level->PortalLinks().empty()) {
         DrawText("A IN sends to A OUT", x + 14, line, 11, Color{94, 222, 255, 255});
@@ -311,7 +376,8 @@ void DrawControlPanel(const Game& game) {
     }
 
     DrawButton(StartButtonY, "START RUN  (ENTER)", game.CanStart(), Green);
-    DrawButton(GiveUpButtonY, "GIVE UP  (ESC)", game.HasStarted() && game.IsRunning(), Red);
+    DrawButton(GiveUpButtonY, "GIVE UP", game.HasStarted() && game.IsRunning(), Red);
+    DrawButton(MainMenuButtonY, "MAIN MENU  (M / ESC)", true, Blue);
 
     if (!game.HasStarted() && game.BeaconCount(GreenBeaconType) == 0) {
         DrawText("Place a green beacon to start", x + 14, StartButtonY - 22, 11, Red);
@@ -323,7 +389,7 @@ void DrawFooter() {
     int y = BoardTop + GridHeight * CellSize + 7;
     DrawRectangle(0, y - 4, WindowWidth, FooterHeight, Panel);
 
-    const int groupX[4] = {32, 350, 668, 986};
+    const int groupX[4] = {82, 400, 718, 1036};
     const char* keys[4] = {"ENTER", "SPACE", "R", "F11"};
     const char* actions[4] = {"Run", "Pause", "Reset level", "Fullscreen"};
 
@@ -400,12 +466,16 @@ void DrawGame(const Game& game) {
     camera.zoom = GameViewScale();
     BeginMode2D(camera);
 
-    DrawHeader(game);
-    DrawBoard(game);
-    DrawFooter();
-    DrawNotice(game);
-    DrawEndOverlay(game);
-    DrawControlPanel(game);
+    if (game.IsInMainMenu()) {
+        DrawMainMenu(game);
+    } else {
+        DrawHeader(game);
+        DrawBoard(game);
+        DrawFooter();
+        DrawNotice(game);
+        DrawEndOverlay(game);
+        DrawControlPanel(game);
+    }
 
     EndMode2D();
     EndDrawing();

@@ -9,7 +9,7 @@ using namespace std;
 int main() {
     // Set up the window and keep each frame moving smoothly
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
-    InitWindow(min(tri::WindowWidth, 1100), min(tri::WindowHeight, 680), "TRI / BEACON");
+    InitWindow(min(tri::WindowWidth, 1100), min(tri::WindowHeight, 680), "TRI BEACON");
     int monitor = GetCurrentMonitor();
     int monitorWidth = GetMonitorWidth(monitor);
     int monitorHeight = GetMonitorHeight(monitor);
