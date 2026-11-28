@@ -180,6 +180,7 @@ copy /Y "$(ProjectDir)lib\libstdc++-6.dll" "$(OutDir)" &gt;nul</Command>
     <None Include="lib\glfw3.dll" />
     <None Include="main.code-workspace" />
     <None Include="Makefile" />
+    <None Include="Doxyfile" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />

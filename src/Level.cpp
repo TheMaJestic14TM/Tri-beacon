@@ -1,3 +1,6 @@
+/** @file Level.cpp
+ * @brief Loads Tiled maps and updates level events
+ */
 #include "Level.h"
 #include <nlohmann/json.hpp>
 #include <algorithm>

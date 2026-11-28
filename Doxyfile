@@ -1,0 +1,56 @@
+# Project information
+PROJECT_NAME           = "Tri-Beacon Game Documentation"
+PROJECT_BRIEF          = "Game and code documentation"
+OUTPUT_DIRECTORY       = tmp/doxygen
+OUTPUT_LANGUAGE        = English
+USE_MDFILE_AS_MAINPAGE = docs/ProjectGuide.md
+
+# Read the project guide and game source
+INPUT                  = src docs/ProjectGuide.md
+RECURSIVE              = YES
+FILE_PATTERNS          = *.h *.cpp *.md
+EXCLUDE                = src/third_party
+EXCLUDE_PATTERNS        = */third_party/*
+
+# Keep the reference focused on documented public code
+EXTRACT_ALL            = NO
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = NO
+HIDE_UNDOC_MEMBERS     = YES
+HIDE_UNDOC_CLASSES     = YES
+INTERNAL_DOCS          = NO
+SOURCE_BROWSER         = NO
+INLINE_SOURCES         = NO
+VERBATIM_HEADERS       = NO
+SHOW_FILES             = NO
+SHOW_NAMESPACES        = YES
+
+# Generate a PDF source set without the large generated indexes
+GENERATE_HTML          = NO
+GENERATE_LATEX         = YES
+LATEX_OUTPUT           = latex
+PDF_HYPERLINKS         = YES
+USE_PDFLATEX           = YES
+LATEX_BATCHMODE        = YES
+LATEX_HIDE_INDICES     = YES
+COMPACT_LATEX          = YES
+PAPER_TYPE             = a4
+GENERATE_XML           = NO
+GENERATE_MAN           = NO
+GENERATE_RTF           = NO
+GENERATE_TODOLIST      = NO
+GENERATE_BUGLIST       = NO
+GENERATE_TESTLIST      = NO
+GENERATE_DEPRECATEDLIST = NO
+
+# Keep comments and warnings readable
+MARKDOWN_SUPPORT       = YES
+JAVADOC_AUTOBRIEF      = YES
+OPTIMIZE_OUTPUT_FOR_C  = NO
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_NO_PARAMDOC       = NO
+WARN_AS_ERROR          = NO
+QUIET                  = YES
+
+

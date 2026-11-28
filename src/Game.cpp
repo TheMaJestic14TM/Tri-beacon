@@ -1,3 +1,6 @@
+/** @file Game.cpp
+ * @brief Runs the level logic and handles player input
+ */
 #include "Game.h"
 #include "Pathfinder.h"
 #include <algorithm>

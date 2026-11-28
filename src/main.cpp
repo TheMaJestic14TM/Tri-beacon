@@ -1,3 +1,6 @@
+/** @file main.cpp
+ * @brief Starts raylib and runs the main game loop
+ */
 #include "Game.h"
 #include "Renderer.h"
 #include "raylib.h"

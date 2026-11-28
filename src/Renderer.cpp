@@ -1,3 +1,6 @@
+/** @file Renderer.cpp
+ * @brief Draws the menu, map, minions, and game interface
+ */
 #include "Renderer.h"
 #include <cmath>
 #include <string>

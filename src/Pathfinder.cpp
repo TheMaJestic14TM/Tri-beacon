@@ -1,3 +1,6 @@
+/** @file Pathfinder.cpp
+ * @brief Finds routes with A star and beacon movement costs
+ */
 #include "Pathfinder.h"
 #include <algorithm>
 #include <cstdlib>
