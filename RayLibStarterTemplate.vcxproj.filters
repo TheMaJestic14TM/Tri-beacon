@@ -6,6 +6,7 @@
     <Filter Include="Header Files\Third Party"><UniqueIdentifier>{B61C2D2B-AB4C-4125-8D8B-A48270F10CA1}</UniqueIdentifier></Filter>
     <Filter Include="Level Data"><UniqueIdentifier>{CA2EC4A8-F207-4198-A252-90AE9D8D462B}</UniqueIdentifier></Filter>
     <Filter Include="Tileset"><UniqueIdentifier>{F9415C31-E7A2-44B7-B48B-86AF4A906C9E}</UniqueIdentifier></Filter>
+    <Filter Include="Audio"><UniqueIdentifier>{C7D1BCA9-2D2A-45D0-A698-128FA462B1DD}</UniqueIdentifier></Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp"><Filter>Source Files</Filter></ClCompile>
@@ -29,6 +30,8 @@
     <None Include="levels\04_tidal_switchyard.tmj"><Filter>Level Data</Filter></None>
     <None Include="tiles\terrain.tsj"><Filter>Tileset</Filter></None>
     <None Include="tiles\terrain.png"><Filter>Tileset</Filter></None>
+    <None Include="assets\audio\menu.mp3"><Filter>Audio</Filter></None>
+    <None Include="assets\audio\gameplay.mp3"><Filter>Audio</Filter></None>
     <None Include="src\third_party\nlohmann\LICENSE.MIT"><Filter>Level Data</Filter></None>
   </ItemGroup>
 </Project>

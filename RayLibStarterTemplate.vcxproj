@@ -133,10 +133,13 @@
     <PostBuildEvent>
       <Command>if not exist "$(OutDir)levels" mkdir "$(OutDir)levels"
 if not exist "$(OutDir)tiles" mkdir "$(OutDir)tiles"
+if not exist "$(OutDir)assets\audio" mkdir "$(OutDir)assets\audio"
 del /Q "$(OutDir)levels\*.tmj" 2&gt;nul
 copy /Y "$(ProjectDir)levels\*.tmj" "$(OutDir)levels\" &gt;nul
 copy /Y "$(ProjectDir)tiles\terrain.tsj" "$(OutDir)tiles\" &gt;nul
 copy /Y "$(ProjectDir)tiles\terrain.png" "$(OutDir)tiles\" &gt;nul
+copy /Y "$(ProjectDir)assets\audio\menu.mp3" "$(OutDir)assets\audio\" &gt;nul
+copy /Y "$(ProjectDir)assets\audio\gameplay.mp3" "$(OutDir)assets\audio\" &gt;nul
 copy /Y "$(ProjectDir)lib\raylib.dll" "$(OutDir)" &gt;nul
 copy /Y "$(ProjectDir)lib\glfw3.dll" "$(OutDir)" &gt;nul
 copy /Y "$(ProjectDir)lib\libgcc_s_dw2-1.dll" "$(OutDir)" &gt;nul
@@ -163,10 +166,13 @@ copy /Y "$(ProjectDir)lib\libstdc++-6.dll" "$(OutDir)" &gt;nul</Command>
     <PostBuildEvent>
       <Command>if not exist "$(OutDir)levels" mkdir "$(OutDir)levels"
 if not exist "$(OutDir)tiles" mkdir "$(OutDir)tiles"
+if not exist "$(OutDir)assets\audio" mkdir "$(OutDir)assets\audio"
 del /Q "$(OutDir)levels\*.tmj" 2&gt;nul
 copy /Y "$(ProjectDir)levels\*.tmj" "$(OutDir)levels\" &gt;nul
 copy /Y "$(ProjectDir)tiles\terrain.tsj" "$(OutDir)tiles\" &gt;nul
 copy /Y "$(ProjectDir)tiles\terrain.png" "$(OutDir)tiles\" &gt;nul
+copy /Y "$(ProjectDir)assets\audio\menu.mp3" "$(OutDir)assets\audio\" &gt;nul
+copy /Y "$(ProjectDir)assets\audio\gameplay.mp3" "$(OutDir)assets\audio\" &gt;nul
 copy /Y "$(ProjectDir)lib\raylib.dll" "$(OutDir)" &gt;nul
 copy /Y "$(ProjectDir)lib\glfw3.dll" "$(OutDir)" &gt;nul
 copy /Y "$(ProjectDir)lib\libgcc_s_dw2-1.dll" "$(OutDir)" &gt;nul
@@ -178,6 +184,8 @@ copy /Y "$(ProjectDir)lib\libstdc++-6.dll" "$(OutDir)" &gt;nul</Command>
     <None Include="lib\libstdc++-6.dll" />
     <None Include="lib\raylib.dll" />
     <None Include="lib\glfw3.dll" />
+    <None Include="assets\audio\menu.mp3" />
+    <None Include="assets\audio\gameplay.mp3" />
     <None Include="main.code-workspace" />
     <None Include="Makefile" />
     <None Include="Doxyfile" />
